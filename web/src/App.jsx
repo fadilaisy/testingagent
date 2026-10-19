@@ -144,7 +144,11 @@ function MeRedirect() {
 export function App() {
   const { user, meta } = useSession();
   const location = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [location.pathname]);
+  // Braces matter: newer browsers return a Promise from scrollTo, and an
+  // effect must return nothing or a cleanup function.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   if (user === undefined || !meta) {
     return (
