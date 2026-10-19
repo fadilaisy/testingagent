@@ -1,3 +1,4 @@
+import { Bike, Footprints, MapPin, Mountain } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api.js';
@@ -6,10 +7,10 @@ import { ActivityChips, Empty, Loaded } from '../components/ui.jsx';
 import { getPosition, useLoad, useSession } from '../session.jsx';
 
 const QUICK = [
-  { key: 'road_cycling', label: 'Ride', emoji: '🚴' },
-  { key: 'running', label: 'Run', emoji: '🏃' },
-  { key: 'trail_running', label: 'Trail', emoji: '⛰' },
-  { key: 'mtb', label: 'MTB', emoji: '🚵' },
+  { key: 'road_cycling', label: 'Ride', Icon: Bike },
+  { key: 'running', label: 'Run', Icon: Footprints },
+  { key: 'trail_running', label: 'Trail', Icon: Mountain },
+  { key: 'mtb', label: 'MTB', Icon: Bike },
 ];
 
 function Section({ title, link, linkLabel = 'See all', children }) {
@@ -43,27 +44,40 @@ export function Home() {
   return (
     <>
       <div className="hero">
-        <h1>What do you want to do today{user ? `, ${user.name}` : ''}?</h1>
-        {!user && (
-          <p className="muted">
-            Find a route, see who&apos;s going, check the weather and the latest track conditions, then finish somewhere good.{' '}
-            <Link to="/register">Join Jalur</Link>
-          </p>
-        )}
-      </div>
-      <div className="big-choices" role="group" aria-label="Activity">
-        {QUICK.map((q) => (
-          <button
-            type="button"
-            key={q.key}
-            className={`big-choice${activity === q.key ? ' on' : ''}`}
-            aria-pressed={activity === q.key}
-            onClick={() => setActivity(activity === q.key ? '' : q.key)}
-          >
-            <span aria-hidden="true">{q.emoji}</span>
-            <span>{q.label}</span>
-          </button>
-        ))}
+        <svg className="hero-contours" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <path
+              key={i}
+              d={`M-10,${30 + i * 28} C80,${i * 20} 150,${80 + i * 20} 250,${40 + i * 24} S360,${60 + i * 10} 420,${20 + i * 30}`}
+            />
+          ))}
+        </svg>
+        <div className="hero-body">
+          <div className="hero-place">
+            <MapPin size={16} aria-hidden="true" /> {pos ? 'Near you' : user?.locationName ?? 'Jakarta'}
+          </div>
+          <h1>What do you want to do today{user ? `, ${user.name}` : ''}?</h1>
+          {!user && (
+            <p>
+              Find a route, see who&apos;s going, check the weather and the latest track conditions, then finish somewhere good.{' '}
+              <Link to="/register">Join Jalur</Link>
+            </p>
+          )}
+          <div className="big-choices" role="group" aria-label="Activity">
+            {QUICK.map(({ key, label, Icon }) => (
+              <button
+                type="button"
+                key={key}
+                className={`big-choice${activity === key ? ' on' : ''}`}
+                aria-pressed={activity === key}
+                onClick={() => setActivity(activity === key ? '' : key)}
+              >
+                <Icon size={28} strokeWidth={2.2} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <div style={{ marginTop: 12 }}>
         <ActivityChips value={activity} onChange={setActivity} />
