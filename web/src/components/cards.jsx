@@ -1,24 +1,25 @@
 import { Link } from 'react-router-dom';
-import { ACTIVITY_EMOJI, SEVERITY_DOT, ago, conditionLabel, distanceAway, duration, elevation, km, when } from '../format.js';
-import { DifficultyPill } from './ui.jsx';
+import { SEVERITY_DOT, ago, conditionLabel, distanceAway, duration, elevation, km, when } from '../format.js';
+import { ActIcon, DifficultyPill } from './ui.jsx';
 
 export function RouteCard({ route }) {
   return (
     <Link className="card tight" to={`/routes/${route.id}`}>
-      <div className="spread">
-        <span className="small muted">
-          {ACTIVITY_EMOJI[route.activityType]} {route.activityLabel}
-          {route.locationName ? ` · ${route.locationName}` : ''}
-        </span>
+      <div className="card-row">
+        <ActIcon type={route.activityType} />
+        <div className="card-main">
+          <h3 className="truncate">{route.name}</h3>
+          <div className="small muted">
+            {km(route.distanceM)} · {elevation(route.elevationGain)} · ~{duration(route.estDurationS)}
+          </div>
+        </div>
         <DifficultyPill value={route.difficulty} />
       </div>
-      <h3 style={{ marginTop: 6 }}>{route.name}</h3>
-      <div className="row small">
-        <span className="strong">{km(route.distanceM)}</span>
-        <span className="muted">{elevation(route.elevationGain)}</span>
-        <span className="muted">~{duration(route.estDurationS)}</span>
-      </div>
-      <div className="row tiny muted" style={{ marginTop: 6 }}>
+      <div className="row tiny muted card-foot">
+        <span>
+          {route.activityLabel}
+          {route.locationName ? ` · ${route.locationName}` : ''}
+        </span>
         {route.upcomingCount > 0 && <span>👥 {route.upcomingCount} upcoming</span>}
         {route.reportCount > 0 && <span>📣 {route.reportCount} recent reports</span>}
         {route.distanceFromYouM != null && <span>📍 {distanceAway(route.distanceFromYouM)}</span>}
@@ -33,50 +34,59 @@ export function ActivityCard({ activity }) {
   return (
     <Link className="card tight" to={`/activities/${activity.id}`}>
       <div className="spread">
-        <span className="small strong" style={{ color: 'var(--brand)' }}>
-          {when(activity.startsAt)}
-        </span>
-        {activity.visibility === 'private' && <span className="pill">🔒 Private</span>}
-        {activity.myStatus === 'joined' && <span className="pill brand">✓ Joined</span>}
-        {activity.myStatus === 'requested' && <span className="pill">Requested</span>}
+        <ActIcon type={activity.activityType} />
+        <div className="row">
+          {activity.visibility === 'private' && <span className="pill">🔒 Private</span>}
+          {activity.myStatus === 'joined' && <span className="pill brand">✓ Joined</span>}
+          {activity.myStatus === 'requested' && <span className="pill">Requested</span>}
+          {spots != null && spots > 0 && <span className={`pill ${spots <= 4 ? 'earth' : 'brand'}`}>{spots} spots left</span>}
+          {spots === 0 && <span className="pill extreme">Full</span>}
+        </div>
       </div>
-      <h3 style={{ marginTop: 4 }}>
-        {ACTIVITY_EMOJI[activity.activityType]} {activity.title}
-      </h3>
+      <h3 className="card-title">{activity.title}</h3>
       <div className="small muted">
+        🕒 {when(activity.startsAt)}
+        {activity.distanceFromYouM != null ? ` · ${distanceAway(activity.distanceFromYouM)}` : ''}
+      </div>
+      <div className="small muted" style={{ marginTop: 2 }}>
         {activity.route.name} · {km(activity.route.distanceM)}
         {activity.pace ? ` · ${activity.pace}` : ''}
       </div>
-      <div className="row small" style={{ marginTop: 6 }}>
-        <span>👥 {activity.participantCount ?? 0}{activity.participantLimit ? ` / ${activity.participantLimit}` : ''} going</span>
-        {spots != null && spots > 0 && <span className="muted">{spots} spots left</span>}
-        {spots === 0 && <span className="pill">Full</span>}
-        {activity.distanceFromYouM != null && <span className="muted">📍 {distanceAway(activity.distanceFromYouM)}</span>}
+      <div className="small card-foot">
+        👥 {activity.participantCount ?? 0}
+        {activity.participantLimit ? ` / ${activity.participantLimit}` : ''} going
       </div>
     </Link>
   );
 }
 
+const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'short' });
+
 export function EventCard({ event }) {
+  const d = new Date(event.startsAt);
   return (
     <Link className="card tight" to={`/events/${event.id}`}>
-      <div className="spread">
-        <span className="small strong" style={{ color: 'var(--brand)' }}>
-          {when(event.startsAt)}
-        </span>
+      <div className="card-row">
+        <div className="date-tile" aria-hidden="true">
+          <span>{monthFmt.format(d)}</span>
+          <strong>{d.getDate()}</strong>
+        </div>
+        <div className="card-main">
+          <h3 className="truncate">{event.title}</h3>
+          <div className="small muted">
+            {when(event.startsAt)} · by {event.community.name}
+            {event.route?.distanceM ? ` · ${km(event.route.distanceM)}` : ''}
+          </div>
+          <div className="row small" style={{ marginTop: 4 }}>
+            <span>
+              🎟 {event.participantCount ?? 0}
+              {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} registered
+            </span>
+            {event.distanceFromYouM != null && <span className="muted">📍 {distanceAway(event.distanceFromYouM)}</span>}
+            {event.registered && <span className="pill brand">✓ Registered</span>}
+          </div>
+        </div>
         <DifficultyPill value={event.difficulty} />
-      </div>
-      <h3 style={{ marginTop: 4 }}>
-        {ACTIVITY_EMOJI[event.activityType]} {event.title}
-      </h3>
-      <div className="small muted">
-        by {event.community.name}
-        {event.route?.distanceM ? ` · ${km(event.route.distanceM)}` : ''}
-      </div>
-      <div className="row small" style={{ marginTop: 6 }}>
-        <span>🎟 {event.participantCount ?? 0}{event.maxParticipants ? ` / ${event.maxParticipants}` : ''} registered</span>
-        {event.distanceFromYouM != null && <span className="muted">📍 {distanceAway(event.distanceFromYouM)}</span>}
-        {event.registered && <span className="pill brand">✓ Registered</span>}
       </div>
     </Link>
   );
@@ -85,16 +95,19 @@ export function EventCard({ event }) {
 export function CommunityCard({ community }) {
   return (
     <Link className="card tight" to={`/communities/${community.id}`}>
-      <div className="spread">
-        <span className="small muted">
-          {ACTIVITY_EMOJI[community.activityType]} {community.activityLabel}
-          {community.locationName ? ` · ${community.locationName}` : ''}
-        </span>
-        {community.privacy === 'private' && <span className="pill">🔒 Private</span>}
+      <div className="card-row">
+        <ActIcon type={community.activityType} size={48} />
+        <div className="card-main">
+          <h3 className="truncate">{community.name}</h3>
+          <div className="small muted">
+            {community.memberCount?.toLocaleString()} members
+            {community.locationName ? ` · ${community.locationName}` : ''}
+          </div>
+        </div>
       </div>
-      <h3 style={{ marginTop: 6 }}>{community.name}</h3>
-      <div className="row small">
-        <span>👥 {community.memberCount?.toLocaleString()} members</span>
+      <div className="row small card-foot">
+        <span className="muted">{community.activityLabel}</span>
+        {community.privacy === 'private' && <span className="pill">🔒 Private</span>}
         {community.myStatus === 'member' && <span className="pill brand">✓ Member</span>}
         {community.myStatus === 'requested' && <span className="pill">Requested</span>}
       </div>
@@ -102,11 +115,15 @@ export function CommunityCard({ community }) {
   );
 }
 
+const SEVERITY_TONE = ['good', 'warn', 'bad'];
+
 export function ConditionItem({ report, showRoute = false }) {
   return (
-    <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-      <span aria-hidden="true">{SEVERITY_DOT[report.severity] ?? '⚪'}</span>
-      <div style={{ flex: 1 }}>
+    <div className="condition">
+      <span className={`condition-icon ${SEVERITY_TONE[report.severity] ?? ''}`} aria-hidden="true">
+        {SEVERITY_DOT[report.severity] ?? '⚪'}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div>
           <span className="strong">{report.categoryLabel}:</span> {conditionLabel(report.value)}
           {report.km != null && <span className="muted"> · KM {report.km}</span>}

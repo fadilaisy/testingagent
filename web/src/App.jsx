@@ -1,3 +1,4 @@
+import { Activity, Bell, Compass, House, Mountain, Plus, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar, NotFound, RequireAuth, Spinner } from './components/ui.jsx';
@@ -29,19 +30,7 @@ function TopBar() {
 
   return (
     <header className="topbar">
-      <Link to="/" className="brand" aria-label="Jalur home">
-        <img src="/icon.svg" alt="" />
-        <span>Jalur</span>
-      </Link>
-      <nav className="topnav" aria-label="Main">
-        <NavLink to="/" end>
-          Home
-        </NavLink>
-        <NavLink to="/explore">Explore</NavLink>
-        <NavLink to="/activities">My activities</NavLink>
-        <NavLink to="/communities">Communities</NavLink>
-        <NavLink to="/create">Create</NavLink>
-      </nav>
+      <Brand className="topbar-brand" />
       <form
         className="search-form"
         role="search"
@@ -52,10 +41,13 @@ function TopBar() {
       >
         <input type="search" aria-label="Search routes, communities, events and people" placeholder="Search “Puncak”" value={q} onChange={(e) => setQ(e.target.value)} />
       </form>
+      <Link to="/create" className="icon-btn create-btn" aria-label="Create">
+        <Plus size={22} strokeWidth={2.4} />
+      </Link>
       {user ? (
         <>
           <Link to="/notifications" className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
-            🔔
+            <Bell size={20} />
             {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
           </Link>
           <Link to={`/users/${user.id}`} aria-label="Your profile" className="topnav-avatar">
@@ -73,30 +65,60 @@ function TopBar() {
   );
 }
 
-function TabBar() {
+function Brand({ className = '' }) {
+  return (
+    <Link to="/" className={`brand ${className}`} aria-label="Jalur home">
+      <span className="brand-mark" aria-hidden="true">
+        <Mountain size={22} />
+      </span>
+      <span>Jalur</span>
+    </Link>
+  );
+}
+
+// Tabs only navigate (Apple HIG, tab bars); Create is an action, so it lives
+// in the top bar on phones and as a button above the sidebar on desktop.
+function useTabs() {
   const { user } = useSession();
+  return [
+    { to: '/', label: 'Home', Icon: House, end: true },
+    { to: '/explore', label: 'Explore', Icon: Compass },
+    { to: '/activities', label: 'Activity', Icon: Activity },
+    { to: '/communities', label: 'Community', Icon: Users },
+    { to: user ? `/users/${user.id}` : '/login', label: 'Profile', Icon: User },
+  ];
+}
+
+function Sidebar() {
+  const tabs = useTabs();
+  return (
+    <aside className="sidebar">
+      <Brand />
+      <Link to="/create" className="btn primary block side-create">
+        <Plus size={20} aria-hidden="true" /> Create activity
+      </Link>
+      <nav className="side-nav" aria-label="Main">
+        {tabs.map(({ to, label, Icon, end }) => (
+          <NavLink key={label} to={to} end={end}>
+            <Icon size={20} aria-hidden="true" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+function TabBar() {
+  const tabs = useTabs();
   return (
     <nav className="tabbar" aria-label="Main">
-      <NavLink to="/" end>
-        <span aria-hidden="true">🏠</span>
-        <span>Home</span>
-      </NavLink>
-      <NavLink to="/explore">
-        <span aria-hidden="true">🗺</span>
-        <span>Explore</span>
-      </NavLink>
-      <NavLink to="/create">
-        <span aria-hidden="true">➕</span>
-        <span>Create</span>
-      </NavLink>
-      <NavLink to="/activities">
-        <span aria-hidden="true">🚴</span>
-        <span>Activity</span>
-      </NavLink>
-      <NavLink to={user ? `/users/${user.id}` : '/login'}>
-        <span aria-hidden="true">👤</span>
-        <span>Profile</span>
-      </NavLink>
+      {tabs.map(({ to, label, Icon, end }) => (
+        <NavLink key={label} to={to} end={end}>
+          <Icon size={24} aria-hidden="true" />
+          <span>{label}</span>
+        </NavLink>
+      ))}
     </nav>
   );
 }
@@ -152,49 +174,54 @@ export function App() {
 
   if (user === undefined || !meta) {
     return (
-      <>
-        <TopBar />
-        <Spinner />
-      </>
+      <div className="shell">
+        <div className="content">
+          <TopBar />
+          <Spinner />
+        </div>
+      </div>
     );
   }
 
   const auth = (el) => <RequireAuth>{el}</RequireAuth>;
   return (
-    <>
-      <TopBar />
-      <OnboardingGate />
-      <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/explore" element={<Explore />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/create" element={<CreateHub />} />
-          <Route path="/routes/new" element={auth(<RouteUpload />)} />
-          <Route path="/routes/:id" element={<RouteDetail />} />
-          <Route path="/activities" element={auth(<MyActivities />)} />
-          <Route path="/activities/new" element={auth(<ActivityNew />)} />
-          <Route path="/activities/:id" element={<ActivityDetail />} />
-          <Route path="/communities" element={<CommunityList />} />
-          <Route path="/communities/new" element={auth(<CommunityNew />)} />
-          <Route path="/communities/:id" element={<CommunityDetail />} />
-          <Route path="/events/new" element={auth(<EventNew />)} />
-          <Route path="/events/:id" element={<EventDetail />} />
-          <Route path="/notifications" element={auth(<Notifications />)} />
-          <Route path="/users/:id" element={<Profile />} />
-          <Route path="/me" element={auth(<MeRedirect />)} />
-          <Route path="/settings" element={auth(<Settings />)} />
-          <Route path="/onboarding" element={auth(<Onboarding />)} />
-          <Route path="/admin" element={auth(<Admin />)} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </main>
+    <div className="shell">
+      <Sidebar />
+      <div className="content">
+        <TopBar />
+        <OnboardingGate />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/explore" element={<Explore />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/create" element={<CreateHub />} />
+            <Route path="/routes/new" element={auth(<RouteUpload />)} />
+            <Route path="/routes/:id" element={<RouteDetail />} />
+            <Route path="/activities" element={auth(<MyActivities />)} />
+            <Route path="/activities/new" element={auth(<ActivityNew />)} />
+            <Route path="/activities/:id" element={<ActivityDetail />} />
+            <Route path="/communities" element={<CommunityList />} />
+            <Route path="/communities/new" element={auth(<CommunityNew />)} />
+            <Route path="/communities/:id" element={<CommunityDetail />} />
+            <Route path="/events/new" element={auth(<EventNew />)} />
+            <Route path="/events/:id" element={<EventDetail />} />
+            <Route path="/notifications" element={auth(<Notifications />)} />
+            <Route path="/users/:id" element={<Profile />} />
+            <Route path="/me" element={auth(<MeRedirect />)} />
+            <Route path="/settings" element={auth(<Settings />)} />
+            <Route path="/onboarding" element={auth(<Onboarding />)} />
+            <Route path="/admin" element={auth(<Admin />)} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
       <TabBar />
       <Toast />
-    </>
+    </div>
   );
 }
