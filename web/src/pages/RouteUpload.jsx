@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { ElevationChart } from '../components/ElevationChart.jsx';
 import { MapView } from '../components/MapView.jsx';
 import { ErrorBox, Field } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, km } from '../format.js';
+import { km } from '../format.js';
 import { useSession } from '../session.jsx';
 
 // GPX upload & route creation (PRD §10, FR-03..06).
@@ -97,7 +97,7 @@ export function RouteUpload() {
             <select value={form.activityType} onChange={update('activityType')}>
               {meta.activityTypes.map((a) => (
                 <option key={a.key} value={a.key}>
-                  {ACTIVITY_EMOJI[a.key]} {a.label}
+                  {a.label}
                 </option>
               ))}
             </select>

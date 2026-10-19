@@ -103,7 +103,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: sticky; top: 0; z-index: 1000;
   display: flex; align-items: center; gap: 10px;
   padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left));
-  background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: saturate(1.8) blur(16px); -webkit-backdrop-filter: saturate(1.8) blur(16px);
+  background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: saturate(1.4) blur(28px); -webkit-backdrop-filter: saturate(1.4) blur(28px);
   border-bottom: 1px solid var(--border);
 }
 .topbar .brand { font-size: 1.1rem; }
@@ -123,7 +123,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) +
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
   display: flex; align-items: flex-end; justify-content: space-around;
   padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
-  background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: saturate(1.8) blur(16px); -webkit-backdrop-filter: saturate(1.8) blur(16px);
+  background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: saturate(1.4) blur(28px); -webkit-backdrop-filter: saturate(1.4) blur(28px);
   border-top: 1px solid var(--border);
 }
 .tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; flex: 1; min-height: 52px; color: var(--muted); font-size: 0.65rem; font-weight: 600; }
@@ -287,9 +287,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .list > *:last-child { border-bottom: 0; }
 .condition { display: flex; align-items: center; gap: 12px; }
 .condition-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 16px; background: var(--surface-2); font-size: 1rem; }
-.condition-icon.good { background: rgb(31 157 85 / 0.15); }
-.condition-icon.warn { background: rgb(224 160 25 / 0.2); }
-.condition-icon.bad { background: rgb(210 67 47 / 0.12); }
+.condition-icon.good { background: rgb(31 157 85 / 0.15); color: #157a41; }
+.condition-icon.warn { background: rgb(224 160 25 / 0.2); color: #8a5f00; }
+.condition-icon.bad { background: rgb(210 67 47 / 0.12); color: #a92f1d; }
+.glyph { display: inline-block; vertical-align: -0.15em; flex: none; }
+.sev-good { color: var(--good); }
+.sev-warn { color: #b07c00; }
+.sev-bad { color: var(--bad); }
 .avatar { flex: none; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 0.9rem; border: 2px solid var(--surface); }
 .avatar.lg { width: 80px; height: 80px; font-size: 1.9rem; }
 .avatars { display: flex; }
@@ -375,3 +379,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
   :root { --border: #6b7a72; --muted: #c4cfc8; --link: #9fd0f5; }
 }
+@media (prefers-color-scheme: dark) {
+  .condition-icon.good { color: #7fd9a8; }
+  .condition-icon.warn { color: #f0c35a; }
+  .condition-icon.bad { color: #ff9d8a; }
+  .sev-warn { color: #f0c35a; }
+}
+/* HIG prefers filled tab symbols for the selected tab; a light fill keeps the
+   line icons readable. */
+.tabbar a.active svg { fill: currentColor; fill-opacity: 0.18; }

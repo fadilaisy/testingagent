@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { MapView } from '../components/MapView.jsx';
-import { ErrorBox, Field, Loaded } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, duration, km, toLocalInput } from '../format.js';
+import { ActGlyph, ErrorBox, Field, Loaded } from '../components/ui.jsx';
+import { duration, km, toLocalInput } from '../format.js';
 import { useLoad } from '../session.jsx';
 
 function nextMorning() {
@@ -72,7 +72,7 @@ export function ActivityNew() {
             <div className="spread card tight">
               <div>
                 <strong>
-                  {ACTIVITY_EMOJI[r.activityType]} {r.name}
+                  <ActGlyph type={r.activityType} /> {r.name}
                 </strong>
                 <div className="small muted">
                   {km(r.distanceM)} · +{r.elevationGain ?? 0} m · ~{duration(r.estDurationS)}
@@ -90,7 +90,7 @@ export function ActivityNew() {
                   <select required value={routeId} onChange={(e) => setRouteId(e.target.value)} size={Math.min(8, Math.max(2, d.routes.length))}>
                     {d.routes.map((x) => (
                       <option key={x.id} value={x.id}>
-                        {ACTIVITY_EMOJI[x.activityType]} {x.name} · {km(x.distanceM)}
+                        {x.name} · {km(x.distanceM)}
                       </option>
                     ))}
                   </select>

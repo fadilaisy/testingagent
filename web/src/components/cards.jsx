@@ -1,6 +1,7 @@
+import { Clock, Lock, MapPin, Megaphone, Ticket, TriangleAlert, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SEVERITY_DOT, ago, conditionLabel, distanceAway, duration, elevation, km, when } from '../format.js';
-import { ActIcon, DifficultyPill } from './ui.jsx';
+import { ago, conditionLabel, distanceAway, duration, elevation, km, when } from '../format.js';
+import { ActIcon, DifficultyPill, SEVERITY } from './ui.jsx';
 
 export function RouteCard({ route }) {
   return (
@@ -20,10 +21,10 @@ export function RouteCard({ route }) {
           {route.activityLabel}
           {route.locationName ? ` · ${route.locationName}` : ''}
         </span>
-        {route.upcomingCount > 0 && <span>👥 {route.upcomingCount} upcoming</span>}
-        {route.reportCount > 0 && <span>📣 {route.reportCount} recent reports</span>}
-        {route.distanceFromYouM != null && <span>📍 {distanceAway(route.distanceFromYouM)}</span>}
-        {route.flaggedUnsafe && <span className="pill extreme">⚠️ Flagged unsafe</span>}
+        {route.upcomingCount > 0 && <span><Users className="glyph" size="1em" aria-hidden="true" /> {route.upcomingCount} upcoming</span>}
+        {route.reportCount > 0 && <span><Megaphone className="glyph" size="1em" aria-hidden="true" /> {route.reportCount} recent reports</span>}
+        {route.distanceFromYouM != null && <span><MapPin className="glyph" size="1em" aria-hidden="true" /> {distanceAway(route.distanceFromYouM)}</span>}
+        {route.flaggedUnsafe && <span className="pill extreme"><TriangleAlert className="glyph" size="1em" aria-hidden="true" /> Flagged unsafe</span>}
       </div>
     </Link>
   );
@@ -36,7 +37,7 @@ export function ActivityCard({ activity }) {
       <div className="spread">
         <ActIcon type={activity.activityType} />
         <div className="row">
-          {activity.visibility === 'private' && <span className="pill">🔒 Private</span>}
+          {activity.visibility === 'private' && <span className="pill"><Lock className="glyph" size="1em" aria-hidden="true" /> Private</span>}
           {activity.myStatus === 'joined' && <span className="pill brand">✓ Joined</span>}
           {activity.myStatus === 'requested' && <span className="pill">Requested</span>}
           {spots != null && spots > 0 && <span className={`pill ${spots <= 4 ? 'earth' : 'brand'}`}>{spots} spots left</span>}
@@ -45,7 +46,7 @@ export function ActivityCard({ activity }) {
       </div>
       <h3 className="card-title">{activity.title}</h3>
       <div className="small muted">
-        🕒 {when(activity.startsAt)}
+        <Clock className="glyph" size="1em" aria-hidden="true" /> {when(activity.startsAt)}
         {activity.distanceFromYouM != null ? ` · ${distanceAway(activity.distanceFromYouM)}` : ''}
       </div>
       <div className="small muted" style={{ marginTop: 2 }}>
@@ -53,7 +54,7 @@ export function ActivityCard({ activity }) {
         {activity.pace ? ` · ${activity.pace}` : ''}
       </div>
       <div className="small card-foot">
-        👥 {activity.participantCount ?? 0}
+        <Users className="glyph" size="1em" aria-hidden="true" /> {activity.participantCount ?? 0}
         {activity.participantLimit ? ` / ${activity.participantLimit}` : ''} going
       </div>
     </Link>
@@ -79,10 +80,10 @@ export function EventCard({ event }) {
           </div>
           <div className="row small" style={{ marginTop: 4 }}>
             <span>
-              🎟 {event.participantCount ?? 0}
+              <Ticket className="glyph" size="1em" aria-hidden="true" /> {event.participantCount ?? 0}
               {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} registered
             </span>
-            {event.distanceFromYouM != null && <span className="muted">📍 {distanceAway(event.distanceFromYouM)}</span>}
+            {event.distanceFromYouM != null && <span className="muted"><MapPin className="glyph" size="1em" aria-hidden="true" /> {distanceAway(event.distanceFromYouM)}</span>}
             {event.registered && <span className="pill brand">✓ Registered</span>}
           </div>
         </div>
@@ -107,7 +108,7 @@ export function CommunityCard({ community }) {
       </div>
       <div className="row small card-foot">
         <span className="muted">{community.activityLabel}</span>
-        {community.privacy === 'private' && <span className="pill">🔒 Private</span>}
+        {community.privacy === 'private' && <span className="pill"><Lock className="glyph" size="1em" aria-hidden="true" /> Private</span>}
         {community.myStatus === 'member' && <span className="pill brand">✓ Member</span>}
         {community.myStatus === 'requested' && <span className="pill">Requested</span>}
       </div>
@@ -115,14 +116,19 @@ export function CommunityCard({ community }) {
   );
 }
 
-const SEVERITY_TONE = ['good', 'warn', 'bad'];
+function SeverityIcon({ severity }) {
+  const s = SEVERITY[severity] ?? SEVERITY[0];
+  return (
+    <span className={`condition-icon ${s.tone}`} role="img" aria-label={s.label}>
+      <s.Icon size={22} aria-hidden="true" />
+    </span>
+  );
+}
 
 export function ConditionItem({ report, showRoute = false }) {
   return (
     <div className="condition">
-      <span className={`condition-icon ${SEVERITY_TONE[report.severity] ?? ''}`} aria-hidden="true">
-        {SEVERITY_DOT[report.severity] ?? '⚪'}
-      </span>
+      <SeverityIcon severity={report.severity} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div>
           <span className="strong">{report.categoryLabel}:</span> {conditionLabel(report.value)}

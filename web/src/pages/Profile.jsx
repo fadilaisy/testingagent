@@ -4,8 +4,8 @@ import { api } from '../api.js';
 import { RouteCard } from '../components/cards.jsx';
 import { LocationPicker } from '../components/LocationPicker.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
-import { ActivityMultiSelect, Avatar, Empty, ErrorBox, Field, Loaded } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, km } from '../format.js';
+import { ActGlyph, ActivityMultiSelect, Avatar, Empty, ErrorBox, Field, Loaded } from '../components/ui.jsx';
+import { km } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
 import { PremiumCard } from './Communities.jsx';
 
@@ -61,7 +61,7 @@ export function Profile() {
                 <div className="row" style={{ marginTop: 12 }}>
                   {u.activities.map((a) => (
                     <span key={a} className="pill brand">
-                      {ACTIVITY_EMOJI[a]} {labels[a]}
+                      <ActGlyph type={a} /> {labels[a]}
                     </span>
                   ))}
                 </div>
@@ -108,7 +108,7 @@ export function Profile() {
                               <td className="nowrap">{new Date(h.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</td>
                               <td>
                                 <Link to={`/activities/${h.id}`}>
-                                  {ACTIVITY_EMOJI[h.activityType]} {h.title}
+                                  <ActGlyph type={h.activityType} /> {h.title}
                                 </Link>
                               </td>
                               <td style={{ textAlign: 'right' }} className="nowrap">
@@ -143,7 +143,7 @@ export function Profile() {
                     <div className="list">
                       {d.communities.map((c) => (
                         <Link key={c.id} to={`/communities/${c.id}`}>
-                          {ACTIVITY_EMOJI[c.activityType]} {c.name}
+                          <ActGlyph type={c.activityType} /> {c.name}
                         </Link>
                       ))}
                     </div>

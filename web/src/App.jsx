@@ -57,7 +57,7 @@ function TopBar() {
       ) : (
         user === null && (
           <Link to="/login" className="btn small primary">
-            Log in
+            Log In
           </Link>
         )
       )}
@@ -95,7 +95,7 @@ function Sidebar() {
     <aside className="sidebar">
       <Brand />
       <Link to="/create" className="btn primary block side-create">
-        <Plus size={20} aria-hidden="true" /> Create activity
+        <Plus size={20} aria-hidden="true" /> Create Activity
       </Link>
       <nav className="side-nav" aria-label="Main">
         {tabs.map(({ to, label, Icon, end }) => (

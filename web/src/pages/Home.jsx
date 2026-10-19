@@ -13,7 +13,7 @@ const QUICK = [
   { key: 'mtb', label: 'MTB', Icon: Bike },
 ];
 
-function Section({ title, link, linkLabel = 'See all', children }) {
+function Section({ title, link, linkLabel = 'See All', children }) {
   return (
     <section className="section">
       <div className="section-head">
@@ -94,7 +94,7 @@ export function Home() {
                 </p>
                 {!pos && (
                   <button type="button" className="btn ghost small" onClick={locate}>
-                    📍 Use my location
+                    <MapPin size={16} aria-hidden="true" /> Use My Location
                   </button>
                 )}
               </div>

@@ -5,7 +5,6 @@ import { CommunityCard, EventCard } from '../components/cards.jsx';
 import { LocationPicker } from '../components/LocationPicker.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityChips, ActivityPill, Avatar, Empty, ErrorBox, Field, Loaded, Modal, SignInPrompt } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
 
 export function PremiumCard({ onUpgraded }) {
@@ -328,7 +327,7 @@ export function CommunityNew() {
           <select value={form.activityType} onChange={update('activityType')}>
             {meta.activityTypes.map((a) => (
               <option key={a.key} value={a.key}>
-                {ACTIVITY_EMOJI[a.key]} {a.label}
+                {a.label}
               </option>
             ))}
           </select>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { Bike, Compass, Footprints, Mountain, TreePine } from 'lucide-react';
+import { Bike, CircleCheck, Compass, Footprints, Mountain, OctagonAlert, TreePine, TriangleAlert } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { ACTIVITY_EMOJI, DIFFICULTY_LABEL } from '../format.js';
+import { DIFFICULTY_LABEL } from '../format.js';
 import { useSession } from '../session.jsx';
 
 export function Spinner() {
@@ -39,7 +39,7 @@ export function NotFound() {
       <h1>Not found</h1>
       <p>This page doesn&apos;t exist or was removed.</p>
       <Link className="btn" to="/">
-        Go home
+        Go Home
       </Link>
     </div>
   );
@@ -91,6 +91,25 @@ export function ActIcon({ type, size = 40 }) {
   );
 }
 
+// Inline activity icon at text size, replacing emoji so every interface icon
+// shares one stroke style (Apple HIG, icons).
+export function ActGlyph({ type, size = '1.1em' }) {
+  const { Icon, color } = ACTIVITY_STYLE[type] ?? ACTIVITY_STYLE.other;
+  return <Icon className="glyph" size={size} strokeWidth={2.2} style={{ color }} aria-hidden="true" />;
+}
+
+// Shape as well as color carries severity, so it never relies on color alone.
+export const SEVERITY = [
+  { tone: 'good', Icon: CircleCheck, label: 'Clear' },
+  { tone: 'warn', Icon: TriangleAlert, label: 'Caution' },
+  { tone: 'bad', Icon: OctagonAlert, label: 'Hazard' },
+];
+
+export function SeverityGlyph({ severity, size = '1.1em' }) {
+  const s = SEVERITY[severity] ?? SEVERITY[0];
+  return <s.Icon className={`glyph sev-${s.tone}`} size={size} role="img" aria-label={s.label} />;
+}
+
 export function DifficultyPill({ value }) {
   if (!value) return null;
   return <span className={`pill ${value}`}>{DIFFICULTY_LABEL[value] ?? value}</span>;
@@ -99,7 +118,7 @@ export function DifficultyPill({ value }) {
 export function ActivityPill({ type, label }) {
   return (
     <span className="pill brand">
-      {ACTIVITY_EMOJI[type] ?? '🧭'} {label}
+      <ActGlyph type={type} /> {label}
     </span>
   );
 }
@@ -123,7 +142,7 @@ export function ActivityChips({ value, onChange, includeAll = true }) {
           aria-pressed={value === a.key}
           onClick={() => onChange(value === a.key && includeAll ? '' : a.key)}
         >
-          {ACTIVITY_EMOJI[a.key]} {a.label}
+          <ActGlyph type={a.key} /> {a.label}
         </button>
       ))}
     </div>
@@ -145,7 +164,7 @@ export function ActivityMultiSelect({ value, onChange }) {
           aria-pressed={value.includes(a.key)}
           onClick={() => toggle(a.key)}
         >
-          {ACTIVITY_EMOJI[a.key]} {a.label}
+          <ActGlyph type={a.key} /> {a.label}
         </button>
       ))}
     </div>
@@ -182,11 +201,11 @@ export function RequireAuth({ children }) {
   return children;
 }
 
-export function SignInPrompt({ children = 'to join' }) {
+export function SignInPrompt({ children = 'to Join' }) {
   const location = useLocation();
   return (
     <Link className="btn primary block" to={`/login?next=${encodeURIComponent(location.pathname)}`}>
-      Log in {children}
+      Log In {children}
     </Link>
   );
 }

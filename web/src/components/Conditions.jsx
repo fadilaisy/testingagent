@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { api } from '../api.js';
-import { SEVERITY_DOT, ago, conditionLabel } from '../format.js';
+import { ago, conditionLabel } from '../format.js';
 import { useSession } from '../session.jsx';
 import { ConditionItem } from './cards.jsx';
-import { ErrorBox, Field, Modal } from './ui.jsx';
+import { ErrorBox, Field, Modal, SeverityGlyph } from './ui.jsx';
 
 const CATEGORY_EMOJI = { road: '🚧', traffic: '🚗', weather: '🌧', trail: '🥾', crowd: '👥' };
 
@@ -31,7 +31,7 @@ export function ConditionsSummary({ conditions }) {
               return (
                 <div key={c} className="spread">
                   <span>
-                    {SEVERITY_DOT[r.severity]} {r.categoryLabel}: <strong>{conditionLabel(r.value)}</strong>
+                    <SeverityGlyph severity={r.severity} /> {r.categoryLabel}: <strong>{conditionLabel(r.value)}</strong>
                     {r.km != null && <span className="muted small"> · KM {r.km}</span>}
                   </span>
                   <span className="tiny muted">{ago(r.createdAt)}</span>
@@ -127,7 +127,7 @@ export function ReportConditionButton({ routeId, activityId, maxKm, onReported, 
             <div className="chip-grid" role="group" aria-label="Condition">
               {Object.entries(categories[category].values).map(([v, severity]) => (
                 <button type="button" key={v} className={`chip${value === v ? ' on' : ''}`} onClick={() => setValue(v)}>
-                  {SEVERITY_DOT[severity]} {conditionLabel(v)}
+                  <SeverityGlyph severity={severity} /> {conditionLabel(v)}
                 </button>
               ))}
             </div>

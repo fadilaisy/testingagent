@@ -5,7 +5,7 @@ import { MapView } from '../components/MapView.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityPill, Avatar, DifficultyPill, Empty, ErrorBox, Field, Loaded, SignInPrompt, Spinner } from '../components/ui.jsx';
 import { WeatherPanel } from '../components/WeatherPanel.jsx';
-import { ACTIVITY_EMOJI, km, longDate, time, toLocalInput } from '../format.js';
+import { km, longDate, time, toLocalInput } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
 import { PremiumCard } from './Communities.jsx';
 
@@ -89,7 +89,7 @@ export function EventDetail() {
                   </div>
                   {e.description && <p style={{ whiteSpace: 'pre-line', margin: 0 }}>{e.description}</p>}
                   <ErrorBox error={error} />
-                  {!user && !past && <SignInPrompt>to register</SignInPrompt>}
+                  {!user && !past && <SignInPrompt>to Register</SignInPrompt>}
                   {user && !past && !e.registered && (
                     <button type="button" className="btn primary block" disabled={full} onClick={() => act('/register')}>
                       {full ? 'Event is full' : 'Register'}
@@ -234,7 +234,7 @@ export function EventNew() {
             <option value="">No route</option>
             {(routes.data?.routes ?? []).map((x) => (
               <option key={x.id} value={x.id}>
-                {ACTIVITY_EMOJI[x.activityType]} {x.name} · {km(x.distanceM)}
+                {x.name} · {km(x.distanceM)}
               </option>
             ))}
           </select>
