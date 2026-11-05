@@ -43,21 +43,23 @@ npm start         # serve API + built web app on port 3001
 
 ```bash
 npm install && npm run build
-NODE_ENV=production PORT=3001 npm start
+NODE_ENV=production DATABASE_FILE=/var/lib/roamr/roamr.db npm start
 ```
 
-In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production.
+In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. A `Dockerfile` and `railway.json` are included; see [docs/DEPLOY.md](docs/DEPLOY.md) for the alpha deployment guide and `.env.example` for a template.
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3001` | HTTP port |
-| `DATABASE_FILE` | `server/data/roamr.db` | SQLite file |
+| `DATABASE_FILE` | `server/data/roamr.db`; **required** in production | SQLite file |
 | `DEMO_MODE` | on in development, off in production | Relaxes the check-in time window and adds a "check in at the meeting point" button |
-| `SEED` | seed on | `SEED=0` skips demo data on an empty database |
-| `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer |
+| `SEED` | on in development, off in production | `1` loads demo data on an empty database, `0` skips it. Production refuses to start on a database with demo accounts unless `SEED=1` |
+| `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer (`1` = one hop) |
+| `ADMIN_EMAILS` | unset | Comma-separated emails that are admins. Unset: the first account registered becomes the admin |
+| `SIGNUP_CODE` | unset | Invite code required to register (closed alpha). Link: `/register?invite=<code>` |
 | `INSECURE_COOKIES` | unset | `1` allows non-Secure cookies in production (local testing only) |
 
-The first account registered on an empty database becomes the admin.
+`GET /api/health` returns `{ "ok": true }` for host health checks.
 
 ## What's in the MVP
 

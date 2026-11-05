@@ -76,10 +76,10 @@ export function Login() {
 }
 
 export function Register() {
-  const { setUser } = useSession();
+  const { setUser, meta } = useSession();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', inviteCode: params.get('invite') ?? '' });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -111,6 +111,11 @@ export function Register() {
         <Field label="Password" hint="at least 8 characters" error={error?.field === 'Password' && error.message}>
           <input type="password" autoComplete="new-password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         </Field>
+        {meta?.inviteRequired && (
+          <Field label="Invite code" hint="Roamr is in closed alpha" error={error?.field === 'Invite code' && error.message}>
+            <input type="text" autoComplete="off" required value={form.inviteCode} onChange={(e) => setForm({ ...form, inviteCode: e.target.value })} />
+          </Field>
+        )}
         {error && !error.field && <ErrorBox error={error} />}
         <button className="btn primary" disabled={busy}>
           {busy ? 'Creating account…' : 'Create account'}
