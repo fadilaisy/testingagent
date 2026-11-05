@@ -46,7 +46,7 @@ npm install && npm run build
 NODE_ENV=production DATABASE_FILE=/var/lib/roamr/roamr.db npm start
 ```
 
-In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. A `Dockerfile` and `railway.json` are included; see [docs/DEPLOY.md](docs/DEPLOY.md) for the alpha deployment guide and `.env.example` for a template.
+In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. The alpha runs the web app on Vercel and the server on Fly.io (`web/vercel.json`, `fly.toml`, `Dockerfile`); see [docs/DEPLOY.md](docs/DEPLOY.md) for the guide and `.env.example` for a template.
 
 | Variable | Default | Purpose |
 |---|---|---|

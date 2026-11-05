@@ -37,14 +37,24 @@ export function SessionProvider({ children }) {
     refreshUnread();
   }, [refreshUnread]);
 
-  // One stream per tab; EventSource reconnects on its own.
+  // One stream per tab; EventSource reconnects on its own. Proxies (Vercel,
+  // Fly) and deploys can drop the stream, so after a reconnect listeners get
+  // a 'reconnect' event to refetch anything they may have missed.
   useEffect(() => {
     if (!user) return undefined;
     const es = new EventSource('/api/stream');
-    const dispatch = (type) => (e) => {
-      const data = JSON.parse(e.data);
+    const emit = (type, data) => {
       for (const fn of listeners.current) fn(type, data);
     };
+    const dispatch = (type) => (e) => emit(type, JSON.parse(e.data));
+    let opened = false;
+    es.addEventListener('open', () => {
+      if (opened) {
+        emit('reconnect', null);
+        refreshUnread();
+      }
+      opened = true;
+    });
     es.addEventListener('chat', dispatch('chat'));
     es.addEventListener('notification', (e) => {
       dispatch('notification')(e);
@@ -53,7 +63,7 @@ export function SessionProvider({ children }) {
       setToast({ title: n.title, link: n.link, urgent: n.type === 'sos' });
     });
     return () => es.close();
-  }, [user]);
+  }, [user, refreshUnread]);
 
   const subscribe = useCallback((fn) => {
     listeners.current.add(fn);
