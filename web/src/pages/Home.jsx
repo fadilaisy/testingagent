@@ -47,7 +47,7 @@ export function Home() {
         {!user && (
           <p className="muted">
             Find a route, see who&apos;s going, check the weather and the latest track conditions, then finish somewhere good.{' '}
-            <Link to="/register">Join Jalur</Link>
+            <Link to="/register">Join Roamr</Link>
           </p>
         )}
       </div>

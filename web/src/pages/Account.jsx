@@ -66,8 +66,8 @@ export function Login() {
         </div>
         {meta?.demoMode && (
           <div className="alert small">
-            Demo accounts: <strong>kevin@jalur.test</strong> (rider), <strong>sarah@jalur.test</strong> (premium community leader),{' '}
-            <strong>admin@jalur.test</strong> (admin). Password <strong>password123</strong>.
+            Demo accounts: <strong>kevin@roamr.test</strong> (rider), <strong>sarah@roamr.test</strong> (premium community leader),{' '}
+            <strong>admin@roamr.test</strong> (admin). Password <strong>password123</strong>.
           </div>
         )}
       </form>
@@ -99,7 +99,7 @@ export function Register() {
   }
 
   return (
-    <AuthCard title="Join Jalur">
+    <AuthCard title="Join Roamr">
       <p className="muted">Find routes, find people to ride and run with, and share what the trail is like today.</p>
       <form className="stack" onSubmit={submit}>
         <Field label="Name" error={error?.field === 'Name' && error.message}>

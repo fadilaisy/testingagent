@@ -1,4 +1,4 @@
-# Jalur
+# Roamr
 
 A community-powered outdoor activity platform: discover routes, find people to ride, run or hike with, plan together, share live track conditions, check the weather, check in, and find somewhere to finish.
 
@@ -6,7 +6,7 @@ This is the MVP for the *Outdoor Activity Community & Route Discovery Platform* 
 
 > Find a route → Find people → Plan together → Meet → Share conditions → Finish together
 
-"Jalur" is a working name; change it in `server/src/app.js` (`appName`), `web/index.html` and `web/src/App.jsx`.
+To change the app name, edit `server/src/app.js` (`appName`), `web/index.html` and `web/src/App.jsx`.
 
 ## Quick start
 
@@ -19,15 +19,15 @@ npm run dev
 
 Open http://localhost:5173. The API runs on port 3001, and Vite proxies `/api` to it.
 
-On first start the database (`server/data/jalur.db`) is created and filled with demo data around Jakarta, Bogor, Sentul and Puncak. Every demo account uses the password `password123`:
+On first start the database (`server/data/roamr.db`) is created and filled with demo data around Jakarta, Bogor, Sentul and Puncak. Every demo account uses the password `password123`:
 
 | Account | Role |
 |---|---|
-| `kevin@jalur.test` | Rider and runner, has upcoming rides and history |
-| `sarah@jalur.test` | Premium community leader (Jakarta Cycling Club) |
-| `rina@jalur.test` | Premium leader of a private trail-running community |
-| `budi@jalur.test` | Beginner cyclist in Depok, receives nearby-event notifications |
-| `admin@jalur.test` | Admin (moderation dashboard at `/admin`) |
+| `kevin@roamr.test` | Rider and runner, has upcoming rides and history |
+| `sarah@roamr.test` | Premium community leader (Jakarta Cycling Club) |
+| `rina@roamr.test` | Premium leader of a private trail-running community |
+| `budi@roamr.test` | Beginner cyclist in Depok, receives nearby-event notifications |
+| `admin@roamr.test` | Admin (moderation dashboard at `/admin`) |
 
 `npm run seed` wipes the local database and reseeds it.
 
@@ -51,7 +51,7 @@ In production the server also serves `web/dist`. Run it behind HTTPS: session co
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3001` | HTTP port |
-| `DATABASE_FILE` | `server/data/jalur.db` | SQLite file |
+| `DATABASE_FILE` | `server/data/roamr.db` | SQLite file |
 | `DEMO_MODE` | on in development, off in production | Relaxes the check-in time window and adds a "check in at the meeting point" button |
 | `SEED` | seed on | `SEED=0` skips demo data on an empty database |
 | `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer |

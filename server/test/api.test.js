@@ -456,7 +456,7 @@ test('demo seed produces a working home feed and a usable demo login', async () 
   try {
     seed(t.db);
     const kevin = t.client();
-    assert.equal((await kevin.post('/api/auth/login', { email: 'kevin@jalur.test', password: 'password123' })).status, 200);
+    assert.equal((await kevin.post('/api/auth/login', { email: 'kevin@roamr.test', password: 'password123' })).status, 200);
     const home = await kevin.get('/api/home');
     assert.ok(home.body.nearbyActivities.length >= 3);
     assert.ok(home.body.popularRoutes.length >= 3);

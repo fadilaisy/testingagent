@@ -17,7 +17,7 @@ import { createWeatherProvider } from './weather.js';
 // Builds the Express app. Providers are injectable so tests run offline.
 export function createApp({ db, config = {}, weather, places } = {}) {
   const cfg = {
-    appName: 'Jalur',
+    appName: 'Roamr',
     production: false,
     demoMode: false,
     secureCookies: false,

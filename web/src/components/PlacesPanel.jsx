@@ -60,7 +60,7 @@ export function PlacesPanel({ routeId, near = 'finish', onPlaces }) {
       )}
       {state.data && (
         <p className="tiny muted" style={{ margin: 0 }}>
-          {state.data.source === 'openstreetmap' ? 'Places from © OpenStreetMap contributors' : 'Places from the Jalur directory'}
+          {state.data.source === 'openstreetmap' ? 'Places from © OpenStreetMap contributors' : 'Places from the Roamr directory'}
         </p>
       )}
     </div>

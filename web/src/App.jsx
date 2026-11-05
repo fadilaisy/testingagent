@@ -29,9 +29,9 @@ function TopBar() {
 
   return (
     <header className="topbar">
-      <Link to="/" className="brand" aria-label="Jalur home">
+      <Link to="/" className="brand" aria-label="Roamr home">
         <img src="/icon.svg" alt="" />
-        <span>Jalur</span>
+        <span>Roamr</span>
       </Link>
       <nav className="topnav" aria-label="Main">
         <NavLink to="/" end>
