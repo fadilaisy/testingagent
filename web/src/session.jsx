@@ -18,10 +18,20 @@ export function SessionProvider({ children }) {
     return user;
   }, []);
 
-  useEffect(() => {
-    api.get('/meta').then(setMeta).catch(() => setMeta(null));
+  // Set when the server can't be reached at start, so the app can say so
+  // instead of showing a spinner forever.
+  const [bootError, setBootError] = useState(null);
+
+  const boot = useCallback(() => {
+    setBootError(null);
+    api.get('/meta').then(setMeta).catch((err) => {
+      setMeta(null);
+      setBootError(err);
+    });
     refresh().catch(() => setUser(null));
   }, [refresh]);
+
+  useEffect(boot, [boot]);
 
   const refreshUnread = useCallback(async () => {
     if (!user) return setUnread(0);
@@ -71,8 +81,8 @@ export function SessionProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, setUser, refresh, meta, unread, setUnread, refreshUnread, subscribe, toast, setToast }),
-    [user, refresh, meta, unread, refreshUnread, subscribe, toast],
+    () => ({ user, setUser, refresh, meta, bootError, boot, unread, setUnread, refreshUnread, subscribe, toast, setToast }),
+    [user, refresh, meta, bootError, boot, unread, refreshUnread, subscribe, toast],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

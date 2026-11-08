@@ -1,7 +1,7 @@
 import { Activity, Bell, Compass, House, Mountain, Plus, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Avatar, NotFound, RequireAuth, Spinner } from './components/ui.jsx';
+import { Avatar, ErrorBox, NotFound, RequireAuth, Spinner } from './components/ui.jsx';
 import { ForgotPassword, Login, Onboarding, Register, ResetPassword } from './pages/Account.jsx';
 import { ActivityDetail } from './pages/ActivityDetail.jsx';
 import { ActivityNew } from './pages/ActivityNew.jsx';
@@ -177,13 +177,29 @@ function MeRedirect() {
 }
 
 export function App() {
-  const { user, meta } = useSession();
+  const { user, meta, bootError, boot } = useSession();
   const location = useLocation();
   // Braces matter: newer browsers return a Promise from scrollTo, and an
   // effect must return nothing or a cleanup function.
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
+
+  if (bootError) {
+    return (
+      <div className="shell">
+        <div className="content">
+          <TopBar />
+          <ErrorBox>
+            Roamr can&apos;t reach its server right now ({bootError.message}).{' '}
+            <button type="button" className="btn small" onClick={boot}>
+              Try again
+            </button>
+          </ErrorBox>
+        </div>
+      </div>
+    );
+  }
 
   if (user === undefined || !meta) {
     return (
