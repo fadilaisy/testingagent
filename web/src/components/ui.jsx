@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Bike, Compass, Footprints, Mountain, TreePine } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { ACTIVITY_EMOJI, DIFFICULTY_LABEL } from '../format.js';
 import { useSession } from '../session.jsx';
@@ -60,12 +61,32 @@ export function Field({ label, hint, error, children }) {
   );
 }
 
-const AVATAR_COLORS = ['#1f7a4d', '#2a6f97', '#a44a3f', '#7b5ea7', '#c97c1d', '#3d7068', '#b5485d'];
+const AVATAR_COLORS = ['#14402b', '#2f8fd8', '#b5682f', '#d2432f', '#8a6a2f', '#1d5a3c'];
 export function Avatar({ name = '?', size }) {
   const n = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
   return (
     <span className={`avatar${size === 'lg' ? ' lg' : ''}`} style={{ background: AVATAR_COLORS[n % AVATAR_COLORS.length] }} aria-hidden="true">
       {name.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+// Tinted icon tile per activity type, from the Figma design.
+export const ACTIVITY_STYLE = {
+  road_cycling: { Icon: Bike, color: '#2f8fd8' },
+  gravel: { Icon: Bike, color: '#b5682f' },
+  mtb: { Icon: Bike, color: '#14402b' },
+  running: { Icon: Footprints, color: '#d2432f' },
+  trail_running: { Icon: Mountain, color: '#1d5a3c' },
+  hiking: { Icon: TreePine, color: '#8a6a2f' },
+  other: { Icon: Compass, color: '#5a6a62' },
+};
+
+export function ActIcon({ type, size = 40 }) {
+  const { Icon, color } = ACTIVITY_STYLE[type] ?? ACTIVITY_STYLE.other;
+  return (
+    <span className="act-icon" style={{ width: size, height: size, color, background: `${color}1a` }} aria-hidden="true">
+      <Icon size={size * 0.52} strokeWidth={2.2} />
     </span>
   );
 }
