@@ -407,6 +407,13 @@ export function seed(db) {
   });
 }
 
+// Demo accounts all use this domain; production refuses to start with them.
+export const DEMO_EMAIL_DOMAIN = '@roamr.test';
+
+export function hasDemoData(db) {
+  return Boolean(db.prepare("SELECT 1 FROM users WHERE email LIKE '%' || ? LIMIT 1").get(DEMO_EMAIL_DOMAIN));
+}
+
 export function seedIfEmpty(db) {
   if (db.prepare('SELECT 1 FROM users LIMIT 1').get()) return false;
   seed(db);

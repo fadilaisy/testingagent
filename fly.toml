@@ -1,0 +1,39 @@
+# Fly.io config for the Roamr API (and a fallback copy of the web app).
+# The public site is on Vercel, which proxies /api here; see docs/DEPLOY.md.
+# If the app name is taken, change it here and in web/vercel.json.
+app = "roamr-alpha"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  DATABASE_FILE = "/data/roamr.db"
+  # Browser -> Vercel -> Fly proxy -> app: two hops before the client IP.
+  TRUST_PROXY = "2"
+
+[[mounts]]
+  source = "roamr_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # SQLite and the live chat hub live in this one process: keep exactly one
+  # machine running, always on, so chat streams are not cut by auto-stop.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

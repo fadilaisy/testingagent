@@ -44,6 +44,14 @@ export function ChatPanel({ activityId, routeId, maxKm, disabled, onReported }) 
   useEffect(
     () =>
       subscribe((type, data) => {
+        if (type === 'reconnect') {
+          // Pick up messages sent while the live stream was down.
+          api
+            .get(`/activities/${activityId}/messages`)
+            .then((fresh) => setData((d) => (d ? { ...d, messages: fresh.messages } : fresh)))
+            .catch(() => {});
+          return;
+        }
         if (type !== 'chat' || data.activityId !== activityId) return;
         setData((d) => (d && !d.messages.some((m) => m.id === data.id) ? { ...d, messages: [...d.messages, data] } : d));
       }),
