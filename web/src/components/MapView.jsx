@@ -31,7 +31,7 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
   pickRef.current = onPick;
 
   useEffect(() => {
-    const m = L.map(el.current, { scrollWheelZoom: false, zoomControl: true, maxZoom: 18 });
+    const m = L.map(el.current, { scrollWheelZoom: false, zoomControl: true, minZoom: 1, maxZoom: 18, maxBounds: [[180, -Infinity], [-180, Infinity]], maxBoundsViscosity: 1 });
     L.maplibreGL({ style: TILE_STYLE }).addTo(m);
     layer.current = L.layerGroup().addTo(m);
     m.on('click', (e) => pickRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng }));
