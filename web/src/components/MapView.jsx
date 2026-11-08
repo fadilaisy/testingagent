@@ -1,10 +1,8 @@
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+const L = window.L;
+const TILE_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function markerIcon(m) {
   if (m.emoji) {
@@ -19,7 +17,7 @@ function markerIcon(m) {
 }
 
 /**
- * Leaflet map with OpenStreetMap tiles.
+ * Leaflet map with OpenFreeMap vector tiles.
  * - geometry: [[lat, lng, ele], ...] drawn as the route polyline
  * - markers: [{ lat, lng, emoji?, color?, title, subtitle?, link? }]
  * - onPick: when set, clicking the map calls onPick({ lat, lng })
@@ -33,8 +31,8 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
   pickRef.current = onPick;
 
   useEffect(() => {
-    const m = L.map(el.current, { scrollWheelZoom: false, zoomControl: true });
-    L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 18 }).addTo(m);
+    const m = L.map(el.current, { scrollWheelZoom: false, zoomControl: true, maxZoom: 18 });
+    L.maplibreGL({ style: TILE_STYLE }).addTo(m);
     layer.current = L.layerGroup().addTo(m);
     m.on('click', (e) => pickRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng }));
     // Enable scroll zoom only after the user interacts, so the page scrolls normally.
@@ -50,6 +48,7 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
   useEffect(() => {
     const m = map.current;
     const group = layer.current;
+    if (!m || !group) return;
     group.clearLayers();
     const bounds = [];
 
