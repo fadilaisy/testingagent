@@ -1,27 +1,33 @@
-app = "jalur-app"
-primary_region = "sin"
+# fly.toml app configuration file generated for testingagent on 2026-11-08T11:44:02Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'testingagent'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  NODE_ENV = "production"
-  PORT = "3001"
-  DATABASE_FILE = "/data/jalur.db"
+  DATABASE_FILE = '/data/jalur.db'
+  NODE_ENV = 'production'
+  PORT = '3001'
+
+[[mounts]]
+  source = 'jalur_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 3001
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
 [[vm]]
-  cpu_kind = "shared"
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
-  memory = "512mb"
-
-[[mounts]]
-  source = "jalur_data"
-  destination = "/data"
+  memory_mb = 512
