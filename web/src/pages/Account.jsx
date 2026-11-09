@@ -13,6 +13,43 @@ function safeNext(params) {
   return next;
 }
 
+const GOOGLE_ERRORS = {
+  cancelled: 'Google sign-in was cancelled.',
+  expired: 'That Google sign-in took too long or was opened in another browser. Please try again.',
+  failed: "We couldn't complete the Google sign-in. Please try again.",
+  unverified_email: 'Your Google account email is not verified yet. Verify it with Google, or use email and password.',
+  linked_elsewhere: 'This email is already linked to a different Google account.',
+  suspended: 'This account is suspended.',
+  invite_required: 'ROAMR is in closed alpha: open your invite link and choose "Continue with Google" there.',
+  not_configured: 'Google sign-in is not available right now.',
+};
+
+// Full-page navigation: the server redirects to Google and back.
+function GoogleButton({ next, invite, label = 'Continue with Google' }) {
+  const params = new URLSearchParams();
+  if (next && next !== '/') params.set('next', next);
+  if (invite) params.set('invite', invite);
+  const qs = params.toString();
+  return (
+    <>
+      <a className="btn block" href={`/api/auth/google${qs ? `?${qs}` : ''}`}>
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+          <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+          <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+        </svg>
+        {label}
+      </a>
+      <div className="spread small muted" aria-hidden="true">
+        <hr className="divider" style={{ flex: 1 }} />
+        <span style={{ padding: '0 8px' }}>or</span>
+        <hr className="divider" style={{ flex: 1 }} />
+      </div>
+    </>
+  );
+}
+
 function AuthCard({ title, children }) {
   return (
     <div style={{ maxWidth: 420, margin: '24px auto' }}>
@@ -47,8 +84,14 @@ export function Login() {
     }
   }
 
+  const googleError = params.get('google_error');
+
   return (
     <AuthCard title="Welcome back">
+      <div className="stack">
+        {googleError && <div className="alert danger small">{GOOGLE_ERRORS[googleError] ?? GOOGLE_ERRORS.failed}</div>}
+        {meta?.googleLogin && <GoogleButton next={safeNext(params)} />}
+      </div>
       <form className="stack" onSubmit={submit}>
         <Field label="Email">
           <input type="email" autoComplete="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -101,6 +144,11 @@ export function Register() {
   return (
     <AuthCard title="Join ROAMR">
       <p className="muted">Find routes, find people to ride and run with, and share what the trail is like today.</p>
+      {meta?.googleLogin && (
+        <div className="stack">
+          <GoogleButton next={safeNext(params)} invite={form.inviteCode} label="Sign up with Google" />
+        </div>
+      )}
       <form className="stack" onSubmit={submit}>
         <Field label="Name" error={error?.field === 'Name' && error.message}>
           <input type="text" autoComplete="name" required maxLength={60} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

@@ -28,6 +28,14 @@ primary_region = 'sin'
   min_machines_running = 1
   processes = ['app']
 
+  # Answers only when the database does (server/src/api/misc.js).
+  [[http_service.checks]]
+    grace_period = '20s'
+    interval = '30s'
+    method = 'GET'
+    timeout = '5s'
+    path = '/api/health'
+
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'

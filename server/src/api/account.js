@@ -12,6 +12,7 @@ import {
   sessionCookieOptions,
   verifyPassword,
 } from '../auth.js';
+import { passwordResetEmail } from '../email.js';
 import { coarse } from '../geo.js';
 import { NOTIFICATION_TYPES, userSettings } from '../notify.js';
 import { me, publicUser, routeSummary, ROUTE_SELECT } from '../serialize.js';
@@ -20,7 +21,7 @@ import * as v from '../validate.js';
 const EXPERIENCE = ['beginner', 'intermediate', 'advanced'];
 const PREMIUM_PLAN = 'community_creator';
 
-export function accountRouter({ db, config }) {
+export function accountRouter({ db, config, mailer }) {
   const router = Router();
   const authLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: config.authRateLimit ?? 30 });
 
@@ -70,17 +71,29 @@ export function accountRouter({ db, config }) {
     res.json({ ok: true });
   });
 
-  // No email service in the MVP: the reset link is logged on the server and,
-  // outside production, returned in the response so the flow can be tested.
-  router.post('/auth/forgot', authLimit, (req, res) => {
+  // Sends the reset link by email when an email provider is configured.
+  // Without one the link goes to the server log (an admin passes it on by
+  // hand) and, outside production, back in the response so the flow can be
+  // tried. The answer is the same whether or not the account exists.
+  router.post('/auth/forgot', authLimit, async (req, res) => {
     const email = String(req.body.email ?? '').trim().toLowerCase();
-    const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const user = db.prepare('SELECT id, name, email FROM users WHERE email = ? AND suspended = 0').get(email);
     let devResetLink;
     if (user) {
       const token = createResetToken(db, user.id);
       const link = `/reset-password?token=${token}`;
-      console.log(`[password reset] ${email}: ${link}`);
-      if (!config.production) devResetLink = link;
+      if (mailer) {
+        const base = config.publicUrl ?? `${req.protocol}://${req.get('host')}`;
+        try {
+          await mailer.send({ to: user.email, ...passwordResetEmail({ appName: config.appName, name: user.name, link: base + link }) });
+        } catch (err) {
+          // Don't tell the requester: that would reveal which emails have accounts.
+          console.error(`[password reset] could not email user ${user.id}: ${err.message}`);
+        }
+      } else {
+        console.log(`[password reset] ${email}: ${link}`);
+      }
+      if (!config.production && !mailer) devResetLink = link;
     }
     res.json({ ok: true, devResetLink });
   });
@@ -89,7 +102,8 @@ export function accountRouter({ db, config }) {
     const password = v.password(req.body.password);
     const userId = consumeResetToken(db, req.body.token);
     if (!userId) throw new HttpError(400, 'This reset link is invalid or has expired');
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userId);
+    // Opening the link proves the user can read this inbox.
+    db.prepare('UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ?').run(hashPassword(password), userId);
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
     startSession(res, userId);
     res.json({ ok: true });

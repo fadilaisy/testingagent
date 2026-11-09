@@ -25,6 +25,11 @@ CREATE TABLE IF NOT EXISTS users (
   onboarded INTEGER NOT NULL DEFAULT 0,
   is_admin INTEGER NOT NULL DEFAULT 0,
   suspended INTEGER NOT NULL DEFAULT 0,
+  -- Google account id ('sub' claim) once the user signs in with Google.
+  google_sub TEXT,
+  -- 1 once the user has proved they own the email (Google sign-in or a
+  -- completed password reset). Password sign-ups start unverified.
+  email_verified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
@@ -37,6 +42,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS password_resets (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL
+);
+
+-- Google sign-ins in progress: one row per redirect to Google, used once.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  nonce TEXT NOT NULL,
+  code_verifier TEXT NOT NULL,
+  invite_code TEXT,
+  next_path TEXT,
   expires_at TEXT NOT NULL
 );
 
@@ -271,6 +286,8 @@ const ADDED_COLUMNS = [
   ['events', 'payment_email', 'TEXT'],
   ['events', 'payment_instructions', 'TEXT'],
   ['event_participants', 'status', "TEXT NOT NULL DEFAULT 'confirmed'"],
+  ['users', 'google_sub', 'TEXT'],
+  ['users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
 export function migrate(db) {
@@ -278,6 +295,9 @@ export function migrate(db) {
     const has = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
     if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
+  // One account per Google account. Created here because older databases
+  // only get the column from the loop above.
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL');
 }
 
 // Runs fn inside a transaction, rolling back if it throws.

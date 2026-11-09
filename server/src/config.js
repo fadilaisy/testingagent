@@ -29,6 +29,34 @@ export function loadConfig(env = process.env) {
     throw new Error('PUBLIC_URL must be set when MIDTRANS_SERVER_KEY is, so Midtrans can send participants back to the event page');
   }
 
+  const google = {
+    clientId: env.GOOGLE_CLIENT_ID?.trim() || null,
+    clientSecret: env.GOOGLE_CLIENT_SECRET?.trim() || null,
+    callbackUrl: env.GOOGLE_CALLBACK_URL?.trim() || null,
+  };
+  const googleSet = Object.values(google).filter(Boolean).length;
+  if (googleSet && googleSet < 3) {
+    throw new Error('Google login needs all of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_CALLBACK_URL');
+  }
+  if (google.callbackUrl) {
+    let u;
+    try {
+      u = new URL(google.callbackUrl);
+    } catch {
+      throw new Error(`GOOGLE_CALLBACK_URL is not a URL: ${google.callbackUrl}`);
+    }
+    if (production && u.protocol !== 'https:') throw new Error('GOOGLE_CALLBACK_URL must use https:// in production');
+    if (u.pathname !== '/api/auth/google/callback') {
+      throw new Error('GOOGLE_CALLBACK_URL must end with /api/auth/google/callback');
+    }
+  }
+
+  const email = { apiKey: env.RESEND_API_KEY?.trim() || null, from: env.EMAIL_FROM?.trim() || null };
+  if (Boolean(email.apiKey) !== Boolean(email.from)) throw new Error('Email needs both RESEND_API_KEY and EMAIL_FROM');
+  if (production && email.apiKey && !publicUrl) {
+    throw new Error('PUBLIC_URL must be set when RESEND_API_KEY is, so reset emails can link to the site');
+  }
+
   return {
     production,
     port,
@@ -43,6 +71,8 @@ export function loadConfig(env = process.env) {
     signupCode: env.SIGNUP_CODE?.trim() || null,
     publicUrl,
     midtrans: midtransKey ? { serverKey: midtransKey, production: midtransProduction } : null,
+    google: googleSet ? google : null,
+    email: email.apiKey ? email : null,
   };
 }
 

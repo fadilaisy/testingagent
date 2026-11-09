@@ -37,20 +37,31 @@ export function destroySession(db, token) {
   if (token) db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
+// Reset links are valid for an hour and work once. Only a hash of the token
+// is stored, so a copy of the database can't be used to take over accounts.
+export const RESET_TOKEN_MINUTES = 60;
+const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('base64url');
+
 export function createResetToken(db, userId) {
   const token = crypto.randomBytes(24).toString('base64url');
-  const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  db.prepare('INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expires);
+  const expires = new Date(Date.now() + RESET_TOKEN_MINUTES * 60e3).toISOString();
+  // A new link replaces any earlier one for the same account.
+  db.prepare('DELETE FROM password_resets WHERE user_id = ? OR expires_at <= ?').run(userId, nowIso());
+  db.prepare('INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?)').run(hashToken(token), userId, expires);
   return token;
 }
 
 export function consumeResetToken(db, token) {
-  const row = db
-    .prepare('SELECT user_id FROM password_resets WHERE token = ? AND expires_at > ?')
-    .get(String(token ?? ''), nowIso());
-  db.prepare('DELETE FROM password_resets WHERE token = ?').run(String(token ?? ''));
-  return row?.user_id ?? null;
+  const hashed = hashToken(token ?? '');
+  const row = db.prepare('DELETE FROM password_resets WHERE token = ? RETURNING user_id, expires_at').get(hashed);
+  if (!row || row.expires_at <= nowIso()) return null;
+  return row.user_id;
 }
+
+// Password hash for accounts that only sign in with Google. It never matches
+// a password (verifyPassword only accepts scrypt hashes); "Forgot password"
+// can set a real one later.
+export const NO_PASSWORD = 'none$';
 
 export function sessionCookieOptions(secure) {
   return {

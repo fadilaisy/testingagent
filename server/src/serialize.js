@@ -35,6 +35,7 @@ export function me(db, u) {
     notifySettings: userSettings(u),
     onboarded: Boolean(u.onboarded),
     isAdmin: Boolean(u.is_admin),
+    googleLinked: Boolean(u.google_sub),
     isPremium: isPremium(db, u.id),
   };
 }
