@@ -1,33 +1,49 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
+import { promoteAdmins } from './auth.js';
+import { loadConfig } from './config.js';
 import { openDb } from './db.js';
-import { seedIfEmpty } from './seed.js';
+import { hasDemoData, seedIfEmpty } from './seed.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const production = process.env.NODE_ENV === 'production';
-const port = Number(process.env.PORT ?? 3001);
-const dbFile = process.env.DATABASE_FILE ?? path.join(here, '..', 'data', 'jalur.db');
-// Demo mode relaxes the check-in time window and enables "use the meeting
-// point as my location", so the core loop can be tried away from Jakarta.
-const demoMode = process.env.DEMO_MODE ? process.env.DEMO_MODE === '1' : !production;
 
-const db = openDb(dbFile);
-if (process.env.SEED !== '0') seedIfEmpty(db);
+let settings;
+try {
+  settings = loadConfig();
+} catch (err) {
+  console.error(`[config] ${err.message}`);
+  process.exit(1);
+}
+const { production, port, databaseFile, seed, demoMode } = settings;
+
+const db = openDb(databaseFile);
+if (seed) seedIfEmpty(db);
+// Demo accounts share a known password, so a production database that has
+// them (e.g. copied from a laptop) must not go live by accident.
+if (production && !seed && hasDemoData(db)) {
+  console.error('[config] This database contains demo accounts (@roamr.test). Use a fresh DATABASE_FILE, or set SEED=1 for a public demo.');
+  process.exit(1);
+}
+const promoted = promoteAdmins(db, settings.adminEmails);
+if (promoted) console.log(`Granted admin to ${promoted} account(s) from ADMIN_EMAILS.`);
 
 const app = createApp({
   db,
   config: {
     production,
     demoMode,
-    secureCookies: production && process.env.INSECURE_COOKIES !== '1',
-    trustProxy: process.env.TRUST_PROXY,
+    secureCookies: settings.secureCookies,
+    trustProxy: settings.trustProxy,
+    adminEmails: settings.adminEmails,
+    signupCode: settings.signupCode,
     staticDir: path.join(here, '..', '..', 'web', 'dist'),
   },
 });
 
 const server = app.listen(port, () => {
-  console.log(`Jalur API listening on http://localhost:${port}${demoMode ? ' (demo mode)' : ''}`);
+  const notes = [demoMode && 'demo mode', settings.signupCode && 'invite code required'].filter(Boolean);
+  console.log(`ROAMR API listening on http://localhost:${port}${notes.length ? ` (${notes.join(', ')})` : ''}`);
 });
 
 function shutdown() {

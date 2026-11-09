@@ -149,14 +149,14 @@ const ROUTES = [
 ];
 
 const USERS = [
-  { key: 'admin', name: 'Jalur Admin', email: 'admin@jalur.test', admin: true, activities: [], city: 'Jakarta Pusat', bio: 'Keeps the trails tidy.' },
-  { key: 'kevin', name: 'Kevin', email: 'kevin@jalur.test', activities: ['road_cycling', 'running'], city: 'BSD / Tangerang Selatan', bio: 'Road cyclist & runner', experience: 'intermediate' },
-  { key: 'daniel', name: 'Daniel', email: 'daniel@jalur.test', activities: ['road_cycling', 'gravel'], city: 'Bogor', bio: 'Weekend climber', experience: 'advanced' },
-  { key: 'andrew', name: 'Andrew', email: 'andrew@jalur.test', activities: ['road_cycling', 'running'], city: 'BSD / Tangerang Selatan', bio: 'Runs BSD Runners', experience: 'intermediate', premium: true },
-  { key: 'michael', name: 'Michael', email: 'michael@jalur.test', activities: ['road_cycling', 'mtb', 'gravel'], city: 'Bogor', bio: 'Gravel and MTB addict', experience: 'advanced' },
-  { key: 'sarah', name: 'Sarah', email: 'sarah@jalur.test', activities: ['road_cycling', 'running'], city: 'Jakarta Selatan', bio: 'Organizer at Jakarta Cycling Club', experience: 'advanced', premium: true },
-  { key: 'rina', name: 'Rina', email: 'rina@jalur.test', activities: ['trail_running', 'hiking'], city: 'Bogor', bio: 'Trail runner, Sentul Trail Runners', experience: 'advanced', premium: true },
-  { key: 'budi', name: 'Budi', email: 'budi@jalur.test', activities: ['road_cycling'], city: 'Depok', bio: 'Just bought my first road bike', experience: 'beginner' },
+  { key: 'admin', name: 'ROAMR Admin', email: 'admin@roamr.test', admin: true, activities: [], city: 'Jakarta Pusat', bio: 'Keeps the trails tidy.' },
+  { key: 'kevin', name: 'Kevin', email: 'kevin@roamr.test', activities: ['road_cycling', 'running'], city: 'BSD / Tangerang Selatan', bio: 'Road cyclist & runner', experience: 'intermediate' },
+  { key: 'daniel', name: 'Daniel', email: 'daniel@roamr.test', activities: ['road_cycling', 'gravel'], city: 'Bogor', bio: 'Weekend climber', experience: 'advanced' },
+  { key: 'andrew', name: 'Andrew', email: 'andrew@roamr.test', activities: ['road_cycling', 'running'], city: 'BSD / Tangerang Selatan', bio: 'Runs BSD Runners', experience: 'intermediate', premium: true },
+  { key: 'michael', name: 'Michael', email: 'michael@roamr.test', activities: ['road_cycling', 'mtb', 'gravel'], city: 'Bogor', bio: 'Gravel and MTB addict', experience: 'advanced' },
+  { key: 'sarah', name: 'Sarah', email: 'sarah@roamr.test', activities: ['road_cycling', 'running'], city: 'Jakarta Selatan', bio: 'Organizer at Jakarta Cycling Club', experience: 'advanced', premium: true },
+  { key: 'rina', name: 'Rina', email: 'rina@roamr.test', activities: ['trail_running', 'hiking'], city: 'Bogor', bio: 'Trail runner, Sentul Trail Runners', experience: 'advanced', premium: true },
+  { key: 'budi', name: 'Budi', email: 'budi@roamr.test', activities: ['road_cycling'], city: 'Depok', bio: 'Just bought my first road bike', experience: 'beginner' },
 ];
 
 const CITY = {
@@ -407,17 +407,24 @@ export function seed(db) {
   });
 }
 
+// Demo accounts all use this domain; production refuses to start with them.
+export const DEMO_EMAIL_DOMAIN = '@roamr.test';
+
+export function hasDemoData(db) {
+  return Boolean(db.prepare("SELECT 1 FROM users WHERE email LIKE '%' || ? LIMIT 1").get(DEMO_EMAIL_DOMAIN));
+}
+
 export function seedIfEmpty(db) {
   if (db.prepare('SELECT 1 FROM users LIMIT 1').get()) return false;
   seed(db);
-  console.log(`Seeded demo data. Log in as kevin@jalur.test / ${DEMO_PASSWORD} (admin: admin@jalur.test).`);
+  console.log(`Seeded demo data. Log in as kevin@roamr.test / ${DEMO_PASSWORD} (admin: admin@roamr.test).`);
   return true;
 }
 
 // `npm run seed` wipes the local database and reseeds it.
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const file = process.env.DATABASE_FILE ?? path.join(here, '..', 'data', 'jalur.db');
+  const file = process.env.DATABASE_FILE ?? path.join(here, '..', 'data', 'roamr.db');
   if (process.argv.includes('--reset')) {
     for (const suffix of ['', '-wal', '-shm']) fs.rmSync(file + suffix, { force: true });
   }

@@ -51,10 +51,17 @@ export const REPORT_REASONS = {
 export function miscRouter({ db, hub, config }) {
   const router = Router();
 
+  // Liveness check for the host: answers only when the database does.
+  router.get('/health', (_req, res) => {
+    db.prepare('SELECT 1').get();
+    res.set('cache-control', 'no-store').json({ ok: true });
+  });
+
   router.get('/meta', (_req, res) => {
     res.json({
       appName: config.appName,
       demoMode: config.demoMode,
+      inviteRequired: Boolean(config.signupCode),
       activityTypes: ACTIVITY_KEYS.map((key) => ({ key, label: ACTIVITY_TYPES[key].label })),
       difficulties: DIFFICULTIES,
       conditionCategories: Object.fromEntries(

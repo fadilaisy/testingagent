@@ -1,4 +1,4 @@
-# Jalur
+# ROAMR
 
 A community-powered outdoor activity platform: discover routes, find people to ride, run or hike with, plan together, share live track conditions, check the weather, check in, and find somewhere to finish.
 
@@ -6,7 +6,7 @@ This is the MVP for the *Outdoor Activity Community & Route Discovery Platform* 
 
 > Find a route → Find people → Plan together → Meet → Share conditions → Finish together
 
-"Jalur" is a working name; change it in `server/src/app.js` (`appName`), `web/index.html` and `web/src/App.jsx`.
+To change the app name, edit `server/src/app.js` (`appName`), `web/index.html` and `web/src/App.jsx`.
 
 ## Quick start
 
@@ -19,15 +19,15 @@ npm run dev
 
 Open http://localhost:5173. The API runs on port 3001, and Vite proxies `/api` to it.
 
-On first start the database (`server/data/jalur.db`) is created and filled with demo data around Jakarta, Bogor, Sentul and Puncak. Every demo account uses the password `password123`:
+On first start the database (`server/data/roamr.db`) is created and filled with demo data around Jakarta, Bogor, Sentul and Puncak. Every demo account uses the password `password123`:
 
 | Account | Role |
 |---|---|
-| `kevin@jalur.test` | Rider and runner, has upcoming rides and history |
-| `sarah@jalur.test` | Premium community leader (Jakarta Cycling Club) |
-| `rina@jalur.test` | Premium leader of a private trail-running community |
-| `budi@jalur.test` | Beginner cyclist in Depok, receives nearby-event notifications |
-| `admin@jalur.test` | Admin (moderation dashboard at `/admin`) |
+| `kevin@roamr.test` | Rider and runner, has upcoming rides and history |
+| `sarah@roamr.test` | Premium community leader (Jakarta Cycling Club) |
+| `rina@roamr.test` | Premium leader of a private trail-running community |
+| `budi@roamr.test` | Beginner cyclist in Depok, receives nearby-event notifications |
+| `admin@roamr.test` | Admin (moderation dashboard at `/admin`) |
 
 `npm run seed` wipes the local database and reseeds it.
 
@@ -43,21 +43,23 @@ npm start         # serve API + built web app on port 3001
 
 ```bash
 npm install && npm run build
-NODE_ENV=production PORT=3001 npm start
+NODE_ENV=production DATABASE_FILE=/var/lib/roamr/roamr.db npm start
 ```
 
-In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production.
+In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. The alpha runs the web app on Vercel and the server on Fly.io (`web/vercel.json`, `fly.toml`, `Dockerfile`); see [docs/DEPLOY.md](docs/DEPLOY.md) for the guide and `.env.example` for a template.
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3001` | HTTP port |
-| `DATABASE_FILE` | `server/data/jalur.db` | SQLite file |
+| `DATABASE_FILE` | `server/data/roamr.db`; **required** in production | SQLite file |
 | `DEMO_MODE` | on in development, off in production | Relaxes the check-in time window and adds a "check in at the meeting point" button |
-| `SEED` | seed on | `SEED=0` skips demo data on an empty database |
-| `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer |
+| `SEED` | on in development, off in production | `1` loads demo data on an empty database, `0` skips it. Production refuses to start on a database with demo accounts unless `SEED=1` |
+| `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer (`1` = one hop) |
+| `ADMIN_EMAILS` | unset | Comma-separated emails that are admins. Unset: the first account registered becomes the admin |
+| `SIGNUP_CODE` | unset | Invite code required to register (closed alpha). Link: `/register?invite=<code>` |
 | `INSECURE_COOKIES` | unset | `1` allows non-Secure cookies in production (local testing only) |
 
-The first account registered on an empty database becomes the admin.
+`GET /api/health` returns `{ "ok": true }` for host health checks.
 
 ## What's in the MVP
 

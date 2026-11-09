@@ -85,6 +85,15 @@ export function requireAdmin(req, _res, next) {
   next();
 }
 
+// Gives admin to existing accounts listed in ADMIN_EMAILS. Returns how many
+// accounts changed. Accounts registered later are handled at sign-up.
+export function promoteAdmins(db, emails = []) {
+  let changed = 0;
+  const stmt = db.prepare('UPDATE users SET is_admin = 1 WHERE email = ? AND is_admin = 0');
+  for (const email of emails) changed += Number(stmt.run(email).changes);
+  return changed;
+}
+
 export function isPremium(db, userId) {
   return Boolean(
     db

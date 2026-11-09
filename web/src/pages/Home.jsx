@@ -60,7 +60,7 @@ export function Home() {
           {!user && (
             <p>
               Find a route, see who&apos;s going, check the weather and the latest track conditions, then finish somewhere good.{' '}
-              <Link to="/register">Join Jalur</Link>
+              <Link to="/register">Join ROAMR</Link>
             </p>
           )}
           <div className="big-choices" role="group" aria-label="Activity">

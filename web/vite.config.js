@@ -3,6 +3,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
+  // Pre-bundle the big dependencies at startup. Without this, Vite discovers
+  // them on the first page load, re-bundles, and forces a full reload.
+  optimizeDeps: {
+    include: ['react', 'react-dom/client', 'react-router-dom', 'leaflet'],
+  },
   build: {
     rollupOptions: {
       output: {
