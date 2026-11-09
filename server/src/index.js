@@ -25,6 +25,9 @@ if (production && !seed && hasDemoData(db)) {
   console.error('[config] This database contains demo accounts (@roamr.test). Use a fresh DATABASE_FILE, or set SEED=1 for a public demo.');
   process.exit(1);
 }
+if (production && !settings.email) {
+  console.warn('[config] No email provider (RESEND_API_KEY, EMAIL_FROM): password reset links are only written to this log.');
+}
 const promoted = promoteAdmins(db, settings.adminEmails);
 if (promoted) console.log(`Granted admin to ${promoted} account(s) from ADMIN_EMAILS.`);
 
@@ -39,6 +42,8 @@ const app = createApp({
     signupCode: settings.signupCode,
     publicUrl: settings.publicUrl,
     midtrans: settings.midtrans,
+    google: settings.google,
+    email: settings.email,
     staticDir: path.join(here, '..', '..', 'web', 'dist'),
   },
 });
@@ -48,6 +53,8 @@ const server = app.listen(port, () => {
     demoMode && 'demo mode',
     settings.signupCode && 'invite code required',
     settings.midtrans && `Midtrans ${settings.midtrans.production ? 'production' : 'sandbox'}`,
+    settings.google && 'Google login',
+    settings.email && 'reset emails via Resend',
   ].filter(Boolean);
   console.log(`ROAMR API listening on http://localhost:${port}${notes.length ? ` (${notes.join(', ')})` : ''}`);
 });

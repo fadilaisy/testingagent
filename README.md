@@ -57,6 +57,8 @@ In production the server also serves `web/dist`. Run it behind HTTPS: session co
 | `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer (`1` = one hop) |
 | `ADMIN_EMAILS` | unset | Comma-separated emails that are admins. Unset: the first account registered becomes the admin |
 | `SIGNUP_CODE` | unset | Invite code required to register (closed alpha). Link: `/register?invite=<code>` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` | unset | All three turn on "Continue with Google". See docs/DEPLOY.md |
+| `RESEND_API_KEY`, `EMAIL_FROM` | unset | Send password-reset emails through Resend. Unset: the link is only logged |
 | `INSECURE_COOKIES` | unset | `1` allows non-Secure cookies in production (local testing only) |
 
 `GET /api/health` returns `{ "ok": true }` for host health checks.
@@ -67,7 +69,7 @@ Mapped to the PRD's MVP table (§34):
 
 | PRD feature | Status |
 |---|---|
-| Registration, login, logout, reset password, edit profile | ✅ Email and password. The reset link is logged on the server, and outside production it is also shown on screen |
+| Registration, login, logout, reset password, edit profile | ✅ Email and password, plus Google sign-in (OIDC, linked by verified email) when configured. Reset links are emailed through Resend when configured; otherwise logged on the server, and outside production also shown on screen |
 | Activity categories and onboarding | ✅ Road cycling, gravel, MTB, running, trail running, hiking, other |
 | GPX upload, parse, distance, elevation gain/loss, highest point, estimated time, difficulty | ✅ With a preview before publishing and a GPS-noise filter on elevation |
 | Route map and elevation profile | ✅ Leaflet + OpenStreetMap tiles |
@@ -91,10 +93,10 @@ Mapped to the PRD's MVP table (§34):
 
 ### Not built yet
 
-- Google/Apple sign-in (email and password only)
+- Apple sign-in
 - Real payments for premium (paid events already use Midtrans; premium could reuse it)
 - Automatic payouts to paid-event organizers (paid totals are shown; payout is manual)
-- Email delivery (password reset, notifications) and Web Push; notifications are in-app only
+- Email notifications and Web Push; notifications are in-app only (password-reset email is supported)
 - Photo upload in chat and event covers (cover is a URL field)
 - Map rotation (Leaflet supports zoom and pan only; MapLibre GL would add rotation)
 - Phase 2/3 items: follows, feed, leaderboards, Strava/Garmin, AI recommendations

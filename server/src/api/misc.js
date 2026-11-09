@@ -49,7 +49,7 @@ export const REPORT_REASONS = {
   other: 'Other',
 };
 
-export function miscRouter({ db, hub, config, payments }) {
+export function miscRouter({ db, hub, config, payments, google }) {
   const router = Router();
 
   // Liveness check for the host: answers only when the database does.
@@ -63,6 +63,7 @@ export function miscRouter({ db, hub, config, payments }) {
       appName: config.appName,
       demoMode: config.demoMode,
       inviteRequired: Boolean(config.signupCode),
+      googleLogin: Boolean(google),
       activityTypes: ACTIVITY_KEYS.map((key) => ({ key, label: ACTIVITY_TYPES[key].label })),
       difficulties: DIFFICULTIES,
       conditionCategories: Object.fromEntries(

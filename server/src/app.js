@@ -6,19 +6,22 @@ import path from 'node:path';
 import { accountRouter } from './api/account.js';
 import { activitiesRouter } from './api/activities.js';
 import { communityRouter } from './api/community.js';
+import { googleRouter } from './api/google.js';
 import { paymentsRouter } from './api/payments.js';
 import { miscRouter } from './api/misc.js';
 import { routesRouter } from './api/routes.js';
 import { HttpError, loadUser } from './auth.js';
 import { createNotifier } from './notify.js';
+import { createMailer } from './email.js';
 import { createEventPayments } from './eventPayments.js';
+import { createGoogleAuth } from './google.js';
 import { createMidtrans } from './payments.js';
 import { createPlacesProvider } from './places.js';
 import { createHub } from './realtime.js';
 import { createWeatherProvider } from './weather.js';
 
 // Builds the Express app. Providers are injectable so tests run offline.
-export function createApp({ db, config = {}, weather, places, payments } = {}) {
+export function createApp({ db, config = {}, weather, places, payments, google, mailer } = {}) {
   const cfg = {
     appName: 'ROAMR',
     production: false,
@@ -38,6 +41,9 @@ export function createApp({ db, config = {}, weather, places, payments } = {}) {
     // null when no gateway is configured: paid events then use manual
     // confirmation only.
     payments: payments !== undefined ? payments : createMidtrans(cfg.midtrans ?? {}),
+    // null when Google login / the email provider are not configured.
+    google: google !== undefined ? google : createGoogleAuth(cfg.google ?? {}),
+    mailer: mailer !== undefined ? mailer : createMailer(cfg.email ?? {}),
   };
   ctx.eventPayments = createEventPayments(ctx);
 
@@ -65,6 +71,7 @@ export function createApp({ db, config = {}, weather, places, payments } = {}) {
 
   const api = express.Router();
   api.use(accountRouter(ctx));
+  api.use(googleRouter(ctx));
   api.use(routesRouter(ctx));
   api.use(activitiesRouter(ctx));
   api.use(communityRouter(ctx));
