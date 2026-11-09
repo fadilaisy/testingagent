@@ -201,6 +201,49 @@ test('cancelling on Google and a refused code end on the login page with a messa
   assert.equal(bad.headers.get('location'), '/login?google_error=failed');
 });
 
+test('a database error at the callback still redirects to the login page', async (t) => {
+  const g = fakeGoogle();
+  const app = await startTestApp({ google: g.auth });
+  t.after(() => app.close());
+  const b = browser(app.base);
+  const to = new URL((await b.go('/api/auth/google')).headers.get('location'));
+  app.db.exec('DROP TABLE oauth_states');
+  const errors = t.mock.method(console, 'error', () => {});
+  const cb = await b.go(`/api/auth/google/callback?code=good-code&state=${to.searchParams.get('state')}`);
+  assert.equal(cb.status, 302);
+  assert.equal(cb.headers.get('location'), '/login?google_error=failed');
+  assert.equal(errors.mock.callCount(), 1);
+});
+
+test('the callback clears the state cookie with the attributes it was set with', async (t) => {
+  const g = fakeGoogle();
+  const app = await startTestApp({ google: g.auth, config: { secureCookies: true } });
+  t.after(() => app.close());
+  const b = browser(app.base);
+  const start = await b.go('/api/auth/google');
+  const to = new URL(start.headers.get('location'));
+  g.queue(g.sign(g.claims({ nonce: to.searchParams.get('nonce') })));
+  const cb = await b.go(`/api/auth/google/callback?code=good-code&state=${to.searchParams.get('state')}`);
+  const cleared = cb.headers.getSetCookie().find((c) => c.startsWith('g_state='));
+  assert.match(cleared, /Expires=Thu, 01 Jan 1970/i);
+  for (const attr of [/Path=\/api\/auth\/google/i, /HttpOnly/i, /Secure/i, /SameSite=Lax/i]) assert.match(cleared, attr);
+});
+
+test('expired sign-in states are purged at the callback too', async (t) => {
+  const g = fakeGoogle();
+  const app = await startTestApp({ google: g.auth });
+  t.after(() => app.close());
+  const abandoned = new URL((await browser(app.base).go('/api/auth/google')).headers.get('location'));
+  const b = browser(app.base);
+  const to = new URL((await b.go('/api/auth/google')).headers.get('location'));
+  app.db
+    .prepare('UPDATE oauth_states SET expires_at = ? WHERE state = ?')
+    .run(new Date(Date.now() - 1000).toISOString(), abandoned.searchParams.get('state'));
+  g.queue(g.sign(g.claims({ nonce: to.searchParams.get('nonce') })));
+  await b.go(`/api/auth/google/callback?code=good-code&state=${to.searchParams.get('state')}`);
+  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM oauth_states').get().n, 0);
+});
+
 test('ID tokens are checked for signature, issuer, audience, expiry, nonce and verified email', async () => {
   const g = fakeGoogle();
   const nonce = 'n-123';
@@ -334,7 +377,7 @@ test('only safe same-site paths are used after sign-in', async (t) => {
   const g = fakeGoogle();
   const app = await startTestApp({ google: g.auth });
   t.after(() => app.close());
-  for (const next of ['https://evil.example', '//evil.example', '/\\evil.example', '/login']) {
+  for (const next of ['https://evil.example', '//evil.example', '/\\evil.example', '/login', '/api/me']) {
     app.db.prepare('DELETE FROM users').run();
     const where = await googleSignIn(t, g, browser(app.base), { query: `?next=${encodeURIComponent(next)}` });
     assert.equal(where, '/onboarding?next=%2F', next);

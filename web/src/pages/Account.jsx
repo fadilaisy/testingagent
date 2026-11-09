@@ -6,11 +6,12 @@ import { ActivityMultiSelect, ErrorBox, Field } from '../components/ui.jsx';
 import { useSession } from '../session.jsx';
 
 // Only same-site, non-auth paths are allowed as post-login destinations.
+// Keep in step with safeNextPath in server/src/api/google.js.
 function safeNext(params) {
   const next = params.get('next');
-  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/';
-  if (/^\/(login|register|onboarding|forgot-password|reset-password)\b/.test(next)) return '/';
-  return next;
+  if (!next || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return '/';
+  if (/^\/(login|register|onboarding|forgot-password|reset-password|api)\b/.test(next)) return '/';
+  return next.slice(0, 300);
 }
 
 const GOOGLE_ERRORS = {

@@ -98,25 +98,29 @@ export function googleRouter({ db, config, google, notifier }) {
   // Step 2: Google sends the browser back here.
   router.get('/auth/google/callback', limit, async (req, res) => {
     res.set('cache-control', 'no-store');
-    res.clearCookie(STATE_COOKIE, { path: stateCookie.path });
+    // Express 5 drops maxAge here; the other attributes must match for the browser to clear it.
+    res.clearCookie(STATE_COOKIE, stateCookie);
     if (!google) return res.redirect(failure('not_configured'));
 
-    const state = typeof req.query.state === 'string' ? req.query.state : '';
-    const cookieState = req.cookies?.[STATE_COOKIE] ?? '';
-    // The state must match the cookie this browser got in step 1 (stops
-    // someone from logging a victim into the attacker's account) and is
-    // used up straight away.
-    const pending = state ? db.prepare('DELETE FROM oauth_states WHERE state = ? RETURNING *').get(state) : null;
-    const sameBrowser =
-      cookieState.length === state.length && state && crypto.timingSafeEqual(Buffer.from(cookieState), Buffer.from(state));
-    if (!pending || !sameBrowser || pending.expires_at <= nowIso()) return res.redirect(failure('expired'));
-
-    if (req.query.error) {
-      return res.redirect(failure(req.query.error === 'access_denied' ? 'cancelled' : 'failed'));
-    }
-    if (typeof req.query.code !== 'string' || !req.query.code) return res.redirect(failure('failed'));
-
+    // Everything below can throw (database included); the browser expects a
+    // redirect, never the JSON error handler.
     try {
+      const state = typeof req.query.state === 'string' ? req.query.state : '';
+      const cookieState = req.cookies?.[STATE_COOKIE] ?? '';
+      // The state must match the cookie this browser got in step 1 (stops
+      // someone from logging a victim into the attacker's account) and is
+      // used up straight away.
+      const pending = state ? db.prepare('DELETE FROM oauth_states WHERE state = ? RETURNING *').get(state) : null;
+      db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(nowIso());
+      const sameBrowser =
+        cookieState.length === state.length && state && crypto.timingSafeEqual(Buffer.from(cookieState), Buffer.from(state));
+      if (!pending || !sameBrowser || pending.expires_at <= nowIso()) return res.redirect(failure('expired'));
+
+      if (req.query.error) {
+        return res.redirect(failure(req.query.error === 'access_denied' ? 'cancelled' : 'failed'));
+      }
+      if (typeof req.query.code !== 'string' || !req.query.code) return res.redirect(failure('failed'));
+
       const idToken = await google.exchangeCode(req.query.code, pending.code_verifier);
       const identity = await google.verifyIdToken(idToken, { nonce: pending.nonce });
       const { user, created, passwordCleared } = signInWithGoogle(db, config, identity, { inviteCode: pending.invite_code });
