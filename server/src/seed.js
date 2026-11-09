@@ -338,10 +338,11 @@ export function seed(db) {
     const community = (o) => {
       const id = db
         .prepare(
-          `INSERT INTO communities (owner_id, name, description, activity_type, location_name, lat, lng, rules, privacy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          `INSERT INTO communities (owner_id, name, description, activity_type, location_name, lat, lng, rules, privacy, kind, organizer_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         )
-        .get(users[o.owner], o.name, o.description, o.activity, o.location, o.lat, o.lng, o.rules, o.privacy ?? 'public').id;
+        .get(users[o.owner], o.name, o.description, o.activity, o.location, o.lat, o.lng, o.rules, o.privacy ?? 'public',
+          o.organizer ? 'organizer' : 'community', o.organizer ? 'approved' : null).id;
       db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'admin', 'member')").run(id, users[o.owner]);
       for (const m of o.members) {
         db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'member', 'member')").run(id, users[m]);
@@ -364,18 +365,24 @@ export function seed(db) {
       description: 'Easy runs, tempo sessions and long runs around BSD.', rules: 'Everyone is welcome.', members: ['kevin', 'sarah'],
     });
 
+    const fondo = community({
+      owner: 'sarah', name: 'Puncak Gran Fondo', activity: 'road_cycling', location: 'Bogor', lat: -6.5658, lng: 106.8541, organizer: true,
+      description: 'Organizer of supported rides and races around Sentul and Puncak.', rules: '', members: [],
+    });
+
     const event = (o) => {
       const r = o.route ? routeRow(o.route) : null;
       const id = db
         .prepare(
           `INSERT INTO events (community_id, route_id, created_by, title, description, activity_type, starts_at, ends_at,
              meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km,
-             kind, price_idr, payment_method, payment_email, payment_instructions)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+             kind, price_idr, payment_method, payment_email, payment_instructions, perks)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         )
         .get(o.community, r?.id ?? null, users[o.by], o.title, o.description, o.activity, o.startsAt, o.endsAt ?? null,
           o.meetingPoint, r?.start_lat ?? o.lat, r?.start_lng ?? o.lng, o.max ?? null, r?.difficulty ?? null, o.pace ?? null, o.radius ?? null,
-          o.price ? 'paid' : 'community', o.price ?? null, o.price ? 'manual' : null, o.paymentEmail ?? null, o.paymentInstructions ?? null).id;
+          o.price ? 'paid' : 'community', o.price ?? null, o.price ? 'manual' : null, o.paymentEmail ?? null, o.paymentInstructions ?? null,
+          JSON.stringify(o.perks ?? [])).id;
       for (const k of o.registered ?? []) db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(id, users[k]);
       return id;
     };
@@ -396,9 +403,10 @@ export function seed(db) {
     });
     // A paid event (manual confirmation, since the demo has no payment gateway keys).
     event({
-      community: jcc, by: 'sarah', title: 'Puncak Gran Fondo (supported)', route: 'sentul', activity: 'road_cycling', startsAt: wib(13, 5),
+      community: fondo, by: 'sarah', title: 'Puncak Gran Fondo (supported)', route: 'sentul', activity: 'road_cycling', startsAt: wib(13, 5),
       meetingPoint: 'Sentul City roundabout', max: 40, pace: '27 km/h',
       description: 'Supported ride with a sag wagon, mechanic, two food stops and a finisher jersey.',
+      perks: ['Finisher medal', 'Finisher jersey', 'Two food stops', 'Sag wagon and mechanic'],
       price: 175000, paymentEmail: 'bayar@jakartacycling.test', paymentInstructions: 'Transfer to BCA 123 456 7890 a/n Jakarta Cycling Club, then email the receipt.',
       registered: ['sarah'],
     });

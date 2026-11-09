@@ -11,6 +11,7 @@ export function Admin() {
   const [status, setStatus] = useState('open');
   const overview = useLoad(() => (user.isAdmin ? api.get('/admin/overview') : null), []);
   const reports = useLoad(() => (user.isAdmin ? api.get(`/admin/reports?status=${status}`) : null), [status]);
+  const organizers = useLoad(() => (user.isAdmin ? api.get('/admin/organizers') : null), []);
   const [error, setError] = useState(null);
 
   if (!user.isAdmin) return <NotFound />;
@@ -20,6 +21,17 @@ export function Admin() {
     try {
       await api.post(`/admin/reports/${id}`, { action });
       reports.reload();
+      overview.reload();
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function review(id, action) {
+    setError(null);
+    try {
+      await api.post(`/admin/organizers/${id}`, { action });
+      organizers.reload();
       overview.reload();
     } catch (err) {
       setError(err);
@@ -40,6 +52,7 @@ export function Admin() {
               ['Communities', o.communities],
               ['Events', o.events],
               ['Open reports', o.openReports],
+              ['Organizers to review', o.pendingOrganizers],
             ].map(([l, v]) => (
               <div key={l} className="stat">
                 <div className="v">{v.toLocaleString()}</div>
@@ -48,6 +61,46 @@ export function Admin() {
             ))}
           </div>
         )}
+      </Loaded>
+
+      <div className="section-head section">
+        <h2>Organizers to review</h2>
+      </div>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Approved organizers can sell paid events. Check that the organization is real before approving.
+      </p>
+      <Loaded state={organizers}>
+        {(d) =>
+          d.organizers.length ? (
+            <div className="stack">
+              {d.organizers.map((o) => (
+                <div key={o.id} className="card">
+                  <div className="spread">
+                    <Link to={`/communities/${o.id}`} className="strong">
+                      {o.name}
+                    </Link>
+                    <span className="tiny muted">{ago(o.createdAt)}</span>
+                  </div>
+                  <p style={{ margin: '8px 0' }} className="small">
+                    {o.activityLabel}
+                    {o.locationName ? ` · ${o.locationName}` : ''} · owner <Link to={`/users/${o.owner.id}`}>{o.owner.name}</Link> ({o.ownerEmail})
+                  </p>
+                  {o.description && <p className="small muted" style={{ margin: '0 0 8px', whiteSpace: 'pre-line' }}>{o.description}</p>}
+                  <div className="row">
+                    <button type="button" className="btn small primary" onClick={() => review(o.id, 'approve')}>
+                      Approve
+                    </button>
+                    <button type="button" className="btn small danger" onClick={() => review(o.id, 'reject')}>
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty>No organizers waiting for review.</Empty>
+          )
+        }
       </Loaded>
 
       <div className="section-head section">

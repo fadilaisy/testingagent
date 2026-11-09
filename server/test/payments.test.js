@@ -55,7 +55,8 @@ function notification(orderId, amount, transactionStatus, extra = {}) {
 async function setupCommunity(t, name) {
   const leader = await t.signup(`${name} Leader`, JAKARTA);
   await leader.post('/api/me/premium');
-  const c = await leader.post('/api/communities', { name: `${name} Club`, activityType: 'road_cycling', ...JAKARTA });
+  const c = await leader.post('/api/communities', { name: `${name} Club`, activityType: 'road_cycling', kind: 'organizer', ...JAKARTA });
+  t.db.prepare("UPDATE communities SET organizer_status = 'approved' WHERE id = ?").run(c.body.community.id);
   return { leader, community: c.body.community };
 }
 

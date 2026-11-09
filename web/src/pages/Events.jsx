@@ -81,6 +81,7 @@ export function EventDetail() {
                 </p>
                 <p className="muted small" style={{ margin: 0 }}>
                   Organized by <Link to={`/communities/${e.community.id}`}>{e.community.name}</Link>
+                  {e.community.verifiedOrganizer && <span className="pill brand" style={{ marginLeft: 6 }}>✓ Verified organizer</span>}
                 </p>
               </div>
               <ReportButton targetType="event" targetId={e.id} />
@@ -106,6 +107,16 @@ export function EventDetail() {
                     </span>
                   </div>
                   {e.description && <p style={{ whiteSpace: 'pre-line', margin: 0 }}>{e.description}</p>}
+                  {e.perks?.length > 0 && (
+                    <div>
+                      <div className="small muted">What you get</div>
+                      <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+                        {e.perks.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <ErrorBox error={error} />
                   {!user && !past && <SignInPrompt>to register</SignInPrompt>}
                   {e.kind === 'paid' && user && (
@@ -188,7 +199,7 @@ export function EventNew() {
     d.setHours(5, 30, 0, 0);
     return {
       title: '', description: '', coverUrl: '', startsAt: toLocalInput(d), endsAt: '', meetingPoint: '', maxParticipants: '', difficulty: '', pace: '', notificationRadiusKm: '',
-      priceIdr: '', paymentMethod: gateway ? 'gateway' : 'manual', paymentEmail: user?.email ?? '', paymentInstructions: '',
+      priceIdr: '', paymentMethod: gateway ? 'gateway' : 'manual', paymentEmail: user?.email ?? '', paymentInstructions: '', perks: '',
     };
   });
   const [error, setError] = useState(null);
@@ -196,7 +207,10 @@ export function EventNew() {
   const update = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const adminOf = (mine.data?.communities ?? []).filter((c) => c.myRole === 'admin');
-  const community = adminOf.find((c) => String(c.id) === String(communityId));
+  // Paid events can only come from organizers a ROAMR admin has verified.
+  const choices = kind === 'paid' ? adminOf.filter((c) => c.verifiedOrganizer) : adminOf;
+  const pendingOrganizer = adminOf.find((c) => c.kind === 'organizer' && c.organizerStatus === 'pending');
+  const community = choices.find((c) => String(c.id) === String(communityId));
   const r = route.data?.route;
   const location = pin ?? (r ? { lat: r.start[0], lng: r.start[1] } : community?.location ? { lat: community.location[0], lng: community.location[1] } : null);
   const markers = useMemo(() => (location ? [{ ...location, emoji: '📍', title: 'Meeting point' }] : []), [location?.lat, location?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -206,13 +220,14 @@ export function EventNew() {
     setBusy(true);
     setError(null);
     try {
-      const { priceIdr, paymentMethod, paymentEmail, paymentInstructions, ...common } = form;
-      const paid = kind === 'paid' ? { priceIdr: Number(priceIdr), paymentMethod, paymentEmail: paymentEmail || undefined, paymentInstructions } : {};
+      const { priceIdr, paymentMethod, paymentEmail, paymentInstructions, perks, ...common } = form;
+      const paid =
+        kind === 'paid' ? { priceIdr: Number(priceIdr), paymentMethod, paymentEmail: paymentEmail || undefined, paymentInstructions, perks } : {};
       const res = await api.post('/events', {
         ...common,
         ...paid,
         kind,
-        communityId: Number(communityId),
+        communityId: community?.id,
         routeId: routeId ? Number(routeId) : undefined,
         lat: location?.lat,
         lng: location?.lng,
@@ -233,14 +248,44 @@ export function EventNew() {
   const fieldError = (name) => error?.field === name && error.message;
 
   if (mine.loading) return <Spinner />;
-  if (!adminOf.length) {
+
+  const kindTabs = (
+    <div className="tabs" role="group" aria-label="Event type">
+      <button type="button" className={kind === 'community' ? 'on' : ''} aria-pressed={kind === 'community'} onClick={() => setKind('community')}>
+        🎟 Community event · free
+      </button>
+      <button type="button" className={kind === 'paid' ? 'on' : ''} aria-pressed={kind === 'paid'} onClick={() => setKind('paid')}>
+        💳 Paid event · organizers
+      </button>
+    </div>
+  );
+
+  if (!choices.length) {
     return (
       <div style={{ maxWidth: 680, margin: '0 auto' }} className="stack">
         <h1>{heading}</h1>
-        <Empty>
-          Events are run by communities. You aren&apos;t an admin of any community yet.{' '}
-          <Link to="/communities/new">Create a community</Link> or ask an admin of your club to make you one.
-        </Empty>
+        {kindTabs}
+        {kind === 'paid' ? (
+          <Empty>
+            Paid events like races and supported rides are sold by verified organizers and sponsors.{' '}
+            {pendingOrganizer ? (
+              <>
+                <Link to={`/communities/${pendingOrganizer.id}`}>{pendingOrganizer.name}</Link> is waiting for a ROAMR admin to approve it.
+                You&apos;ll get a notification when you can sell tickets.
+              </>
+            ) : (
+              <>
+                <Link to="/communities/new?kind=organizer">Create an organizer profile</Link>. A ROAMR admin checks it before you can sell
+                tickets.
+              </>
+            )}
+          </Empty>
+        ) : (
+          <Empty>
+            Events are run by communities. You aren&apos;t an admin of any community yet.{' '}
+            <Link to="/communities/new">Create a community</Link> or ask an admin of your club to make you one.
+          </Empty>
+        )}
       </div>
     );
   }
@@ -248,20 +293,13 @@ export function EventNew() {
   return (
     <div style={{ maxWidth: 760, margin: '0 auto' }} className="stack">
       <h1>{heading}</h1>
-      <div className="tabs" role="group" aria-label="Event type">
-        <button type="button" className={kind === 'community' ? 'on' : ''} aria-pressed={kind === 'community'} onClick={() => setKind('community')}>
-          🎟 Community event · free
-        </button>
-        <button type="button" className={kind === 'paid' ? 'on' : ''} aria-pressed={kind === 'paid'} onClick={() => setKind('paid')}>
-          💳 Paid event
-        </button>
-      </div>
+      {kindTabs}
       {error?.premiumRequired && !user.isPremium && <PremiumCard onUpgraded={() => setError(null)} />}
       <form className="card stack" onSubmit={submit}>
-        <Field label="Community">
-          <select required value={communityId} onChange={(e) => setCommunityId(e.target.value)}>
-            <option value="">Choose a community</option>
-            {adminOf.map((c) => (
+        <Field label={kind === 'paid' ? 'Organizer' : 'Community'} error={fieldError('Event type')}>
+          <select required value={community ? communityId : ''} onChange={(e) => setCommunityId(e.target.value)}>
+            <option value="">{kind === 'paid' ? 'Choose an organizer' : 'Choose a community'}</option>
+            {choices.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -351,6 +389,9 @@ export function EventNew() {
                 <textarea required maxLength={1000} value={form.paymentInstructions} onChange={update('paymentInstructions')} placeholder="Transfer to BCA 123 456 7890 a/n Jakarta Cycling Club, then email the receipt." />
               </Field>
             )}
+            <Field label="What participants get" hint="optional, one per line" error={fieldError('What participants get')}>
+              <textarea maxLength={700} rows={3} value={form.perks} onChange={update('perks')} placeholder={'Finisher medal\nRace jersey\nRefreshments at the finish'} />
+            </Field>
             {form.paymentMethod === 'manual' ? (
               <p className="muted small" style={{ margin: 0 }}>
                 A registration holds a spot for 72 hours while you check the transfer. Confirm each payment on the event page.

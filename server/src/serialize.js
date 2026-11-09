@@ -155,6 +155,9 @@ export function communitySummary(c) {
     locationName: c.location_name,
     location: c.lat != null ? [c.lat, c.lng] : null,
     privacy: c.privacy,
+    kind: c.kind ?? 'community',
+    organizerStatus: c.kind === 'organizer' ? c.organizer_status : null,
+    verifiedOrganizer: c.kind === 'organizer' && c.organizer_status === 'approved',
     memberCount: c.member_count ?? undefined,
     myRole: c.my_role ?? null,
     myStatus: c.my_status ?? null,
@@ -190,13 +193,18 @@ export function eventSummary(e) {
     kind: e.kind ?? 'community',
     priceIdr: e.kind === 'paid' ? e.price_idr : null,
     paymentMethod: e.kind === 'paid' ? e.payment_method : null,
+    perks: parseJson(e.perks, []),
     participantCount: e.participant_count ?? undefined,
     // Confirmed plus pending-payment registrations: what counts against
     // maxParticipants.
     spotsTaken: e.spots_taken ?? undefined,
     registered: e.my_status === 'confirmed',
     myRegistration: e.my_status ?? null,
-    community: { id: e.community_id, name: e.community_name ?? null },
+    community: {
+      id: e.community_id,
+      name: e.community_name ?? null,
+      verifiedOrganizer: e.community_kind === 'organizer' && e.community_organizer_status === 'approved',
+    },
     route: e.route_id ? { id: e.route_id, name: e.route_name ?? null, distanceM: e.route_distance_m ?? null } : null,
     distanceFromYouM: e.distance_from_you_m ?? undefined,
     createdAt: e.created_at,
@@ -204,7 +212,7 @@ export function eventSummary(e) {
 }
 
 export const EVENT_SELECT = `
-  SELECT e.*, c.name AS community_name, r.name AS route_name, r.distance_m AS route_distance_m,
+  SELECT e.*, c.name AS community_name, c.kind AS community_kind, c.organizer_status AS community_organizer_status, r.name AS route_name, r.distance_m AS route_distance_m,
     (SELECT COUNT(*) FROM event_participants p WHERE p.event_id = e.id AND p.status = 'confirmed') AS participant_count,
     (SELECT COUNT(*) FROM event_participants p WHERE p.event_id = e.id) AS spots_taken,
     (SELECT p.status FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ?) AS my_status
