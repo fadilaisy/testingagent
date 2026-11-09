@@ -24,14 +24,14 @@ export function fakeWeather({ rainyHoursUtc = [] } = {}) {
   };
 }
 
-export async function startTestApp({ demoMode = true } = {}) {
+export async function startTestApp({ demoMode = true, config = {} } = {}) {
   const db = openDb(':memory:');
   const offlineFetch = async () => {
     throw new Error('offline');
   };
   const app = createApp({
     db,
-    config: { demoMode, authRateLimit: 1000 },
+    config: { demoMode, authRateLimit: 1000, ...config },
     weather: fakeWeather({ rainyHoursUtc: [0, 1] }),
     places: createPlacesProvider({ db, fetchImpl: offlineFetch }),
   });

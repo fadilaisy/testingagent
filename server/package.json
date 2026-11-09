@@ -1,5 +1,5 @@
 {
-  "name": "jalur-server",
+  "name": "roamr-server",
   "private": true,
   "type": "module",
   "main": "src/index.js",

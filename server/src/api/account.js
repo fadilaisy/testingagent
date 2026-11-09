@@ -33,14 +33,22 @@ export function accountRouter({ db, config }) {
     const email = v.email(req.body.email);
     const password = v.password(req.body.password);
     const name = v.text(req.body.name, 'Name', { max: 60, required: true });
+    // A closed alpha hands out an invite code; without SIGNUP_CODE anyone can join.
+    if (config.signupCode && String(req.body.inviteCode ?? '').trim() !== config.signupCode) {
+      throw new HttpError(403, 'This invite code is not valid', { field: 'Invite code' });
+    }
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
       throw new HttpError(409, 'An account with this email already exists', { field: 'Email' });
     }
-    // The first account on a fresh install becomes the admin.
-    const isFirst = !db.prepare('SELECT 1 FROM users LIMIT 1').get();
+    // Admins come from ADMIN_EMAILS when it is set; otherwise the first
+    // account on a fresh install becomes the admin.
+    const adminEmails = config.adminEmails ?? [];
+    const isAdmin = adminEmails.length
+      ? adminEmails.includes(email)
+      : !db.prepare('SELECT 1 FROM users LIMIT 1').get();
     const user = db
       .prepare('INSERT INTO users (email, password_hash, name, is_admin) VALUES (?, ?, ?, ?) RETURNING *')
-      .get(email, hashPassword(password), name, isFirst ? 1 : 0);
+      .get(email, hashPassword(password), name, isAdmin ? 1 : 0);
     startSession(res, user.id);
     res.status(201).json({ user: me(db, user) });
   });
