@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { SEVERITY_DOT, ago, conditionLabel, distanceAway, duration, elevation, km, when } from '../format.js';
+import { SEVERITY_DOT, ago, conditionLabel, distanceAway, duration, elevation, km, rupiah, when } from '../format.js';
 import { ActIcon, DifficultyPill } from './ui.jsx';
 
 export function RouteCard({ route }) {
@@ -83,13 +83,19 @@ export function EventCard({ event }) {
               {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} registered
             </span>
             {event.distanceFromYouM != null && <span className="muted">📍 {distanceAway(event.distanceFromYouM)}</span>}
+            <EventKindPill event={event} />
             {event.registered && <span className="pill brand">✓ Registered</span>}
+            {event.myRegistration === 'pending' && <span className="pill earth">Payment pending</span>}
           </div>
         </div>
         <DifficultyPill value={event.difficulty} />
       </div>
     </Link>
   );
+}
+
+export function EventKindPill({ event }) {
+  return event.kind === 'paid' ? <span className="pill earth">💳 {rupiah(event.priceIdr)}</span> : <span className="pill sky">Free</span>;
 }
 
 export function CommunityCard({ community }) {

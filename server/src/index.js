@@ -37,12 +37,18 @@ const app = createApp({
     trustProxy: settings.trustProxy,
     adminEmails: settings.adminEmails,
     signupCode: settings.signupCode,
+    publicUrl: settings.publicUrl,
+    midtrans: settings.midtrans,
     staticDir: path.join(here, '..', '..', 'web', 'dist'),
   },
 });
 
 const server = app.listen(port, () => {
-  const notes = [demoMode && 'demo mode', settings.signupCode && 'invite code required'].filter(Boolean);
+  const notes = [
+    demoMode && 'demo mode',
+    settings.signupCode && 'invite code required',
+    settings.midtrans && `Midtrans ${settings.midtrans.production ? 'production' : 'sandbox'}`,
+  ].filter(Boolean);
   console.log(`ROAMR API listening on http://localhost:${port}${notes.length ? ` (${notes.join(', ')})` : ''}`);
 });
 

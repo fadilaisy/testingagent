@@ -12,13 +12,17 @@ import {
   ROUTE_SELECT,
 } from '../serialize.js';
 import * as v from '../validate.js';
+import { paymentSummary } from '../eventPayments.js';
+import { MAX_PRICE_IDR, MIN_PRICE_IDR, PAYMENT_METHODS } from '../payments.js';
+
+export const EVENT_KINDS = ['community', 'paid'];
 
 export const NOTIFICATION_RADII_KM = [5, 10, 25, 50];
 // Communities whose owner is not premium keep working but are limited
 // (PRD §21: unlimited events and nearby notifications are premium).
 export const FREE_UPCOMING_EVENT_LIMIT = 2;
 
-export function communityRouter({ db, notifier }) {
+export function communityRouter({ db, notifier, payments, eventPayments }) {
   const router = Router();
 
   const loadCommunity = (id, viewerId = 0) => {
@@ -241,6 +245,10 @@ export function communityRouter({ db, notifier }) {
       where.push('e.difficulty = ?');
       params.push(v.oneOf(q.difficulty, 'Difficulty', DIFFICULTIES));
     }
+    if (q.kind) {
+      where.push('e.kind = ?');
+      params.push(v.oneOf(q.kind, 'Event type', EVENT_KINDS));
+    }
     if (q.communityId) {
       where.push('e.community_id = ?');
       params.push(v.idParam(q.communityId));
@@ -285,6 +293,25 @@ export function communityRouter({ db, notifier }) {
     if (radius && !premium) {
       throw new HttpError(402, 'Nearby notifications need the Premium Community Creator plan', { premiumRequired: true });
     }
+    const kind = v.oneOf(b.kind ?? 'community', 'Event type', EVENT_KINDS);
+    let paid = { price: null, method: null, email: null, instructions: null };
+    if (kind === 'paid') {
+      paid.price = v.int(b.priceIdr, 'Price', { min: MIN_PRICE_IDR, max: MAX_PRICE_IDR, required: true });
+      paid.method = v.oneOf(b.paymentMethod ?? (payments ? 'gateway' : 'manual'), 'Payment method', PAYMENT_METHODS);
+      if (paid.method === 'gateway' && !payments) {
+        throw new HttpError(400, 'Online payment is not set up on this server yet. Use manual confirmation by email.', { field: 'Payment method' });
+      }
+      // The email is where participants send proof of a transfer, and the
+      // contact for payment questions either way.
+      paid.email = b.paymentEmail ? v.email(b.paymentEmail, 'Payment email') : null;
+      if (paid.method === 'manual' && !paid.email) {
+        throw new HttpError(400, 'Payment email is required for manual payment confirmation', { field: 'Payment email' });
+      }
+      paid.instructions = v.text(b.paymentInstructions, 'Payment instructions', { max: 1000 }) || null;
+      if (paid.method === 'manual' && !paid.instructions) {
+        throw new HttpError(400, 'Tell participants how to pay, e.g. the bank account to transfer to', { field: 'Payment instructions' });
+      }
+    }
     if (!premium) {
       const upcoming = db
         .prepare('SELECT COUNT(*) AS n FROM events WHERE community_id = ? AND hidden = 0 AND starts_at > ?')
@@ -297,8 +324,9 @@ export function communityRouter({ db, notifier }) {
     const e = db
       .prepare(
         `INSERT INTO events (community_id, route_id, created_by, title, description, cover_url, activity_type, starts_at,
-           ends_at, meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+           ends_at, meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km,
+           kind, price_idr, payment_method, payment_email, payment_instructions)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       )
       .get(
         c.id, routeId, req.user.id, v.text(b.title, 'Title', { max: 100, required: true }),
@@ -308,6 +336,7 @@ export function communityRouter({ db, notifier }) {
         v.int(b.maxParticipants, 'Maximum participants', { min: 2, max: 10000 }),
         v.oneOf(b.difficulty, 'Difficulty', DIFFICULTIES) ?? route?.difficulty ?? null,
         v.text(b.pace, 'Pace', { max: 40 }) || null, radius,
+        kind, paid.price, paid.method, paid.email, paid.instructions,
       );
 
     const members = memberIds(c.id).filter((id) => id !== req.user.id);
@@ -336,12 +365,16 @@ export function communityRouter({ db, notifier }) {
     const participants = db
       .prepare(
         `SELECT u.id, u.name FROM event_participants p JOIN users u ON u.id = p.user_id
-         WHERE p.event_id = ? ORDER BY p.created_at LIMIT 50`,
+         WHERE p.event_id = ? AND p.status = 'confirmed' ORDER BY p.created_at LIMIT 50`,
       )
       .all(e.id);
+    const myPayment = e.kind === 'paid' && viewerId ? eventPayments.latestPayment(e.id, viewerId) : null;
     res.json({
       event: {
         ...eventSummary(e),
+        paymentEmail: e.kind === 'paid' ? e.payment_email : null,
+        gatewayAvailable: e.kind === 'paid' && e.payment_method === 'gateway' ? Boolean(payments) : undefined,
+        myPayment: myPayment ? paymentSummary(myPayment, e) : null,
         canManage: isAdmin(c),
         communityPrivacy: c.privacy,
         isCommunityMember: isMember(c),
@@ -351,10 +384,16 @@ export function communityRouter({ db, notifier }) {
     });
   });
 
-  router.post('/events/:id/register', requireUser, (req, res) => {
+  router.post('/events/:id/register', requireUser, async (req, res) => {
     const e = loadEvent(v.idParam(req.params.id), req.user.id);
     if (Date.parse(e.starts_at) < Date.now()) throw new HttpError(409, 'This event has already started');
-    if (!e.registered) {
+    if (e.kind === 'paid') {
+      const user = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(req.user.id);
+      const note = v.text(req.body?.note, 'Payment details', { max: 300 });
+      const payment = await eventPayments.register(e, user, { note });
+      return res.json({ event: eventSummary(loadEvent(e.id, req.user.id)), payment: payment ? paymentSummary(payment, e) : null });
+    }
+    if (!e.my_status) {
       transaction(db, () => {
         const n = db.prepare('SELECT COUNT(*) AS n FROM event_participants WHERE event_id = ?').get(e.id).n;
         if (e.max_participants && n >= e.max_participants) throw new HttpError(409, 'This event is full');
@@ -366,6 +405,16 @@ export function communityRouter({ db, notifier }) {
 
   router.post('/events/:id/unregister', requireUser, (req, res) => {
     const e = loadEvent(v.idParam(req.params.id), req.user.id);
+    if (e.kind === 'paid' && e.my_status) {
+      const p = eventPayments.latestPayment(e.id, req.user.id);
+      if (e.my_status === 'confirmed' && e.created_by !== req.user.id) {
+        throw new HttpError(409, 'Paid registrations can only be cancelled by the organizer. Contact them about a refund.');
+      }
+      if (p?.status === 'pending') {
+        eventPayments.setStatus(p, 'cancelled', { quiet: true });
+        return res.json({ event: eventSummary(loadEvent(e.id, req.user.id)) });
+      }
+    }
     db.prepare('DELETE FROM event_participants WHERE event_id = ? AND user_id = ?').run(e.id, req.user.id);
     res.json({ event: eventSummary(loadEvent(e.id, req.user.id)) });
   });

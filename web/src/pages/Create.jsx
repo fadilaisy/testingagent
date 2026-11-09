@@ -4,7 +4,8 @@ import { useSession } from '../session.jsx';
 const OPTIONS = [
   { to: '/routes/new', emoji: '🗺', title: 'Upload GPX', text: 'Turn a .gpx file into a route page with map, climbing, weather and conditions.' },
   { to: '/activities/new', emoji: '📣', title: 'Plan an activity', text: 'Announce a ride, run or hike on a route so others can join you.' },
-  { to: '/events/new', emoji: '🎟', title: 'Create an event', text: 'For community admins: publish an event and reach riders and runners nearby.' },
+  { to: '/events/new?kind=community', emoji: '🎟', title: 'Community event', text: 'For community admins: a free event for your members and riders and runners nearby.' },
+  { to: '/events/new?kind=paid', emoji: '💳', title: 'Paid event', text: 'For community admins: sell spots for a supported ride, race or clinic. Participants pay online or by transfer.' },
   { to: '/communities/new', emoji: '👥', title: 'Create a community', text: 'Premium: start your own club with events, announcements and members.' },
 ];
 

@@ -186,8 +186,15 @@ export function eventSummary(e) {
     pace: e.pace,
     notificationRadiusKm: e.notification_radius_km,
     notifiedCount: e.notified_count,
+    kind: e.kind ?? 'community',
+    priceIdr: e.kind === 'paid' ? e.price_idr : null,
+    paymentMethod: e.kind === 'paid' ? e.payment_method : null,
     participantCount: e.participant_count ?? undefined,
-    registered: Boolean(e.registered),
+    // Confirmed plus pending-payment registrations: what counts against
+    // maxParticipants.
+    spotsTaken: e.spots_taken ?? undefined,
+    registered: e.my_status === 'confirmed',
+    myRegistration: e.my_status ?? null,
     community: { id: e.community_id, name: e.community_name ?? null },
     route: e.route_id ? { id: e.route_id, name: e.route_name ?? null, distanceM: e.route_distance_m ?? null } : null,
     distanceFromYouM: e.distance_from_you_m ?? undefined,
@@ -197,8 +204,9 @@ export function eventSummary(e) {
 
 export const EVENT_SELECT = `
   SELECT e.*, c.name AS community_name, r.name AS route_name, r.distance_m AS route_distance_m,
-    (SELECT COUNT(*) FROM event_participants p WHERE p.event_id = e.id) AS participant_count,
-    (SELECT 1 FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ?) AS registered
+    (SELECT COUNT(*) FROM event_participants p WHERE p.event_id = e.id AND p.status = 'confirmed') AS participant_count,
+    (SELECT COUNT(*) FROM event_participants p WHERE p.event_id = e.id) AS spots_taken,
+    (SELECT p.status FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ?) AS my_status
   FROM events e JOIN communities c ON c.id = e.community_id LEFT JOIN routes r ON r.id = e.route_id`;
 
 export function notification(n) {

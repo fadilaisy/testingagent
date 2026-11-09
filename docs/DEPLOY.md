@@ -18,6 +18,8 @@ browser ──► Vercel (roamr.vercel.app or your domain)
 | `TRUST_PROXY` | `fly.toml` | `2` (Vercel, then Fly's proxy) so the login rate limit sees each tester's real IP |
 | `ADMIN_EMAILS` | `fly secrets set` | your email: gets `/admin` |
 | `SIGNUP_CODE` | `fly secrets set` | the invite code. Share `https://<domain>/register?invite=<code>` |
+| `MIDTRANS_SERVER_KEY` | `fly secrets set` | optional: turns on online payment for paid events (see below) |
+| `MIDTRANS_PRODUCTION`, `PUBLIC_URL` | `fly secrets set` | `1` with the production key; your site address, e.g. `https://roamr.id` |
 | Fly hostname | `web/vercel.json` | `testingagent.fly.dev`; change it here and in `fly.toml` if that name is taken |
 
 No other secrets exist: sessions are random tokens in the database, premium is simulated, and there is no email or push provider yet. Vercel needs **no environment variables**.
@@ -56,6 +58,23 @@ Each push to the production branch redeploys Vercel automatically. Fly deploys w
 - **Password resets have no email.** The reset link is written to the log (`[password reset] email: /reset-password?token=…`). Find it with `fly logs` and send it to the tester yourself.
 - **Check-in uses real rules.** Demo mode is off, so testers must be within 500 m of the meeting point (or 300 m of the route) from 2 hours before the start. `fly secrets set DEMO_MODE=1` only for a remote demo.
 - **External services need no keys:** OpenStreetMap tiles, Open-Meteo weather and the Overpass API are free for alpha traffic.
+
+## Paid events and Midtrans
+
+Events come in two types: **community events** (free) and **paid events** (a price in rupiah). A paid event uses one of two payment methods, chosen by the organizer:
+
+- **Manual (works with no setup).** The organizer enters a payment email and transfer instructions. A participant who registers holds a spot for 72 hours, transfers the money, emails the receipt and taps "I've transferred". The organizer confirms or rejects each payment in the Payments card on the event page.
+- **Online through Midtrans** (only offered when `MIDTRANS_SERVER_KEY` is set). The participant pays on Midtrans' page with QRIS, e-wallets, virtual accounts or cards and is confirmed automatically by Midtrans' notification. Unpaid spots are released after an hour.
+
+To turn on Midtrans:
+
+1. Create a Midtrans account and, under **Settings → Access Keys** in the *Sandbox* dashboard, copy the server key (`SB-Mid-server-…`).
+2. `fly secrets set MIDTRANS_SERVER_KEY=SB-Mid-server-… PUBLIC_URL=https://<your-domain>`
+3. In **Settings → Payment → Notification URL** set `https://<your-domain>/api/payments/midtrans/notification`. Notifications are checked against the SHA-512 signature and the expected amount before anything changes.
+4. Test with a paid event and Midtrans' [sandbox payment simulator](https://simulator.sandbox.midtrans.com/).
+5. When Midtrans activates your production account: `fly secrets set MIDTRANS_SERVER_KEY=Mid-server-… MIDTRANS_PRODUCTION=1` and set the same notification URL in the production dashboard.
+
+**Money flow.** With Midtrans, all payments land in the Roamr merchant account, not the organizer's. Paying organizers out (minus any fee) is a manual step for now: the Payments card shows each event's paid total. Before taking real money, check with Midtrans whether collecting on behalf of organizers needs their marketplace / split-payment setup, and put refund rules in the terms. Registrants can't cancel a paid spot themselves; refunds go through the organizer (and the Midtrans dashboard for online payments, which then notifies Roamr and releases the spot).
 
 ## Running the image yourself
 

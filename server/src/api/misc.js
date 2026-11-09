@@ -18,7 +18,8 @@ import {
 } from '../serialize.js';
 import { parseJson } from '../validate.js';
 import * as v from '../validate.js';
-import { NOTIFICATION_RADII_KM } from './community.js';
+import { MAX_PRICE_IDR, MIN_PRICE_IDR } from '../payments.js';
+import { EVENT_KINDS, NOTIFICATION_RADII_KM } from './community.js';
 
 // Preset home locations for onboarding; users can also share GPS instead.
 export const CITIES = [
@@ -48,7 +49,7 @@ export const REPORT_REASONS = {
   other: 'Other',
 };
 
-export function miscRouter({ db, hub, config }) {
+export function miscRouter({ db, hub, config, payments }) {
   const router = Router();
 
   // Liveness check for the host: answers only when the database does.
@@ -71,6 +72,14 @@ export function miscRouter({ db, hub, config }) {
       notificationTypes: NOTIFICATION_TYPES,
       defaultNotifySettings: DEFAULT_SETTINGS,
       notificationRadii: NOTIFICATION_RADII_KM,
+      eventKinds: EVENT_KINDS,
+      payments: {
+        // Online payment (Midtrans) is only offered when the server has keys;
+        // otherwise paid events use manual confirmation by email.
+        gateway: payments ? { provider: payments.name, environment: payments.environment } : null,
+        minPriceIdr: MIN_PRICE_IDR,
+        maxPriceIdr: MAX_PRICE_IDR,
+      },
       reportReasons: REPORT_REASONS,
       cities: CITIES,
       defaultCenter: DEFAULT_CENTER,

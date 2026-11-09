@@ -73,3 +73,8 @@ export function conditionLabel(value) {
 }
 
 export const SEVERITY_DOT = ['🟢', '🟡', '🔴'];
+
+const idrFmt = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+
+// "Rp 175.000"
+export const rupiah = (amount) => (amount == null ? '' : idrFmt.format(amount));
