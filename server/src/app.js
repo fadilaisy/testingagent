@@ -6,16 +6,19 @@ import path from 'node:path';
 import { accountRouter } from './api/account.js';
 import { activitiesRouter } from './api/activities.js';
 import { communityRouter } from './api/community.js';
+import { paymentsRouter } from './api/payments.js';
 import { miscRouter } from './api/misc.js';
 import { routesRouter } from './api/routes.js';
 import { HttpError, loadUser } from './auth.js';
 import { createNotifier } from './notify.js';
+import { createEventPayments } from './eventPayments.js';
+import { createMidtrans } from './payments.js';
 import { createPlacesProvider } from './places.js';
 import { createHub } from './realtime.js';
 import { createWeatherProvider } from './weather.js';
 
 // Builds the Express app. Providers are injectable so tests run offline.
-export function createApp({ db, config = {}, weather, places } = {}) {
+export function createApp({ db, config = {}, weather, places, payments } = {}) {
   const cfg = {
     appName: 'ROAMR',
     production: false,
@@ -32,7 +35,11 @@ export function createApp({ db, config = {}, weather, places } = {}) {
     notifier: createNotifier({ db, hub }),
     weather: weather ?? createWeatherProvider(),
     places: places ?? createPlacesProvider({ db }),
+    // null when no gateway is configured: paid events then use manual
+    // confirmation only.
+    payments: payments !== undefined ? payments : createMidtrans(cfg.midtrans ?? {}),
   };
+  ctx.eventPayments = createEventPayments(ctx);
 
   const app = express();
   app.disable('x-powered-by');
@@ -61,6 +68,7 @@ export function createApp({ db, config = {}, weather, places } = {}) {
   api.use(routesRouter(ctx));
   api.use(activitiesRouter(ctx));
   api.use(communityRouter(ctx));
+  api.use(paymentsRouter(ctx));
   api.use(miscRouter(ctx));
   api.use((_req, _res, next) => next(new HttpError(404, 'Not found')));
   app.use('/api', api);

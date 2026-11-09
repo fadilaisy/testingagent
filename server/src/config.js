@@ -18,6 +18,17 @@ export function loadConfig(env = process.env) {
   const port = Number(env.PORT ?? 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`PORT is not a valid port: ${env.PORT}`);
 
+  const midtransKey = env.MIDTRANS_SERVER_KEY?.trim() || null;
+  const midtransProduction = env.MIDTRANS_PRODUCTION === '1';
+  if (midtransKey && midtransProduction && midtransKey.startsWith('SB-')) {
+    throw new Error('MIDTRANS_PRODUCTION=1 needs the production server key, not the sandbox one (SB-...)');
+  }
+  const publicUrl = env.PUBLIC_URL?.trim().replace(/\/+$/, '') || null;
+  if (publicUrl && !/^https?:\/\//.test(publicUrl)) throw new Error(`PUBLIC_URL must start with https://: ${publicUrl}`);
+  if (production && midtransKey && !publicUrl) {
+    throw new Error('PUBLIC_URL must be set when MIDTRANS_SERVER_KEY is, so Midtrans can send participants back to the event page');
+  }
+
   return {
     production,
     port,
@@ -30,6 +41,8 @@ export function loadConfig(env = process.env) {
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     adminEmails: list(env.ADMIN_EMAILS).map((e) => e.toLowerCase()),
     signupCode: env.SIGNUP_CODE?.trim() || null,
+    publicUrl,
+    midtrans: midtransKey ? { serverKey: midtransKey, production: midtransProduction } : null,
   };
 }
 

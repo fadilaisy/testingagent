@@ -50,7 +50,7 @@ function TopBar() {
             <Bell size={20} />
             {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
           </Link>
-          <Link to={`/users/${user.id}`} aria-label="Your profile" className="topnav-avatar">
+          <Link to={`/users/${user.id}`} aria-label="Your profile">
             <Avatar name={user.name} />
           </Link>
         </>

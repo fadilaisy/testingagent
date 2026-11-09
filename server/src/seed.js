@@ -369,11 +369,13 @@ export function seed(db) {
       const id = db
         .prepare(
           `INSERT INTO events (community_id, route_id, created_by, title, description, activity_type, starts_at, ends_at,
-             meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+             meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km,
+             kind, price_idr, payment_method, payment_email, payment_instructions)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         )
         .get(o.community, r?.id ?? null, users[o.by], o.title, o.description, o.activity, o.startsAt, o.endsAt ?? null,
-          o.meetingPoint, r?.start_lat ?? o.lat, r?.start_lng ?? o.lng, o.max ?? null, r?.difficulty ?? null, o.pace ?? null, o.radius ?? null).id;
+          o.meetingPoint, r?.start_lat ?? o.lat, r?.start_lng ?? o.lng, o.max ?? null, r?.difficulty ?? null, o.pace ?? null, o.radius ?? null,
+          o.price ? 'paid' : 'community', o.price ?? null, o.price ? 'manual' : null, o.paymentEmail ?? null, o.paymentInstructions ?? null).id;
       for (const k of o.registered ?? []) db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(id, users[k]);
       return id;
     };
@@ -391,6 +393,14 @@ export function seed(db) {
     event({
       community: stc, by: 'rina', title: 'Pancar Trail Clinic', route: 'pancar', activity: 'trail_running', startsAt: wib(9, 6),
       meetingPoint: 'Gunung Pancar parking lot', max: 20, description: 'Downhill technique and footwork drills.', registered: ['rina'],
+    });
+    // A paid event (manual confirmation, since the demo has no payment gateway keys).
+    event({
+      community: jcc, by: 'sarah', title: 'Puncak Gran Fondo (supported)', route: 'sentul', activity: 'road_cycling', startsAt: wib(13, 5),
+      meetingPoint: 'Sentul City roundabout', max: 40, pace: '27 km/h',
+      description: 'Supported ride with a sag wagon, mechanic, two food stops and a finisher jersey.',
+      price: 175000, paymentEmail: 'bayar@jakartacycling.test', paymentInstructions: 'Transfer to BCA 123 456 7890 a/n Jakarta Cycling Club, then email the receipt.',
+      registered: ['sarah'],
     });
 
     const place = db.prepare(

@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
+import { EventKindPill } from '../components/cards.jsx';
+import { PaidRegistration, PaymentsPanel } from '../components/EventPayments.jsx';
 import { MapView } from '../components/MapView.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityPill, Avatar, DifficultyPill, Empty, ErrorBox, Field, Loaded, SignInPrompt, Spinner } from '../components/ui.jsx';
 import { WeatherPanel } from '../components/WeatherPanel.jsx';
-import { ACTIVITY_EMOJI, km, longDate, time, toLocalInput } from '../format.js';
+import { ACTIVITY_EMOJI, km, longDate, rupiah, time, toLocalInput } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
 import { PremiumCard } from './Communities.jsx';
 
@@ -16,6 +18,8 @@ export function EventDetail() {
   const state = useLoad(() => api.get(`/events/${id}`), [id]);
   const [error, setError] = useState(null);
   const created = location.state?.created;
+  const [search, setSearch] = useSearchParams();
+  const backFromPayment = search.get('payment') === 'finish';
 
   const markers = useMemo(() => {
     if (!state.data) return [];
@@ -33,10 +37,23 @@ export function EventDetail() {
     }
   }
 
+  // Back from the Midtrans payment page: check the result right away instead
+  // of waiting for the webhook.
+  useEffect(() => {
+    if (!backFromPayment || !user) return;
+    api
+      .post(`/events/${id}/payment/refresh`)
+      .catch(() => {})
+      .finally(() => {
+        setSearch({}, { replace: true });
+        state.reload();
+      });
+  }, [backFromPayment, id, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Loaded state={state}>
       {({ event: e, route, participants }) => {
-        const full = e.maxParticipants && e.participantCount >= e.maxParticipants;
+        const full = e.maxParticipants && (e.spotsTaken ?? e.participantCount) >= e.maxParticipants;
         const past = new Date(e.startsAt).getTime() < Date.now();
         return (
           <>
@@ -53,6 +70,7 @@ export function EventDetail() {
             <div className="spread" style={{ alignItems: 'flex-start', marginTop: 8 }}>
               <div>
                 <div className="row" style={{ marginBottom: 6 }}>
+                  <EventKindPill event={e} />
                   <ActivityPill type={e.activityType} label={e.activityLabel} />
                   <DifficultyPill value={e.difficulty} />
                 </div>
@@ -90,12 +108,15 @@ export function EventDetail() {
                   {e.description && <p style={{ whiteSpace: 'pre-line', margin: 0 }}>{e.description}</p>}
                   <ErrorBox error={error} />
                   {!user && !past && <SignInPrompt>to register</SignInPrompt>}
-                  {user && !past && !e.registered && (
+                  {e.kind === 'paid' && user && (
+                    <PaidRegistration event={e} past={past} full={full} onChange={state.reload} />
+                  )}
+                  {e.kind !== 'paid' && user && !past && !e.registered && (
                     <button type="button" className="btn primary block" disabled={full} onClick={() => act('/register')}>
                       {full ? 'Event is full' : 'Register'}
                     </button>
                   )}
-                  {user && e.registered && (
+                  {e.kind !== 'paid' && user && e.registered && (
                     <div className="spread">
                       <span className="pill brand">✓ You&apos;re registered</span>
                       {!past && (
@@ -131,6 +152,7 @@ export function EventDetail() {
                     </p>
                   )}
                 </div>
+                {e.canManage && e.kind === 'paid' && <PaymentsPanel eventId={e.id} onChange={state.reload} />}
                 {e.canManage && e.notificationRadiusKm && (
                   <div className="card">
                     <h2>Reach</h2>
@@ -159,10 +181,15 @@ export function EventNew() {
   const [routeId, setRouteId] = useState('');
   const route = useLoad(() => (routeId ? api.get(`/routes/${routeId}`) : null), [routeId]);
   const [pin, setPin] = useState(null);
+  const [kind, setKind] = useState(params.get('kind') === 'paid' ? 'paid' : 'community');
+  const gateway = meta.payments?.gateway;
   const [form, setForm] = useState(() => {
     const d = new Date(Date.now() + 7 * 864e5);
     d.setHours(5, 30, 0, 0);
-    return { title: '', description: '', coverUrl: '', startsAt: toLocalInput(d), endsAt: '', meetingPoint: '', maxParticipants: '', difficulty: '', pace: '', notificationRadiusKm: '' };
+    return {
+      title: '', description: '', coverUrl: '', startsAt: toLocalInput(d), endsAt: '', meetingPoint: '', maxParticipants: '', difficulty: '', pace: '', notificationRadiusKm: '',
+      priceIdr: '', paymentMethod: gateway ? 'gateway' : 'manual', paymentEmail: user?.email ?? '', paymentInstructions: '',
+    };
   });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -179,8 +206,12 @@ export function EventNew() {
     setBusy(true);
     setError(null);
     try {
+      const { priceIdr, paymentMethod, paymentEmail, paymentInstructions, ...common } = form;
+      const paid = kind === 'paid' ? { priceIdr: Number(priceIdr), paymentMethod, paymentEmail: paymentEmail || undefined, paymentInstructions } : {};
       const res = await api.post('/events', {
-        ...form,
+        ...common,
+        ...paid,
+        kind,
         communityId: Number(communityId),
         routeId: routeId ? Number(routeId) : undefined,
         lat: location?.lat,
@@ -198,11 +229,14 @@ export function EventNew() {
     }
   }
 
+  const heading = kind === 'paid' ? 'Create a paid event' : 'Create a community event';
+  const fieldError = (name) => error?.field === name && error.message;
+
   if (mine.loading) return <Spinner />;
   if (!adminOf.length) {
     return (
       <div style={{ maxWidth: 680, margin: '0 auto' }} className="stack">
-        <h1>Create an event</h1>
+        <h1>{heading}</h1>
         <Empty>
           Events are run by communities. You aren&apos;t an admin of any community yet.{' '}
           <Link to="/communities/new">Create a community</Link> or ask an admin of your club to make you one.
@@ -213,7 +247,15 @@ export function EventNew() {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto' }} className="stack">
-      <h1>Create an event</h1>
+      <h1>{heading}</h1>
+      <div className="tabs" role="group" aria-label="Event type">
+        <button type="button" className={kind === 'community' ? 'on' : ''} aria-pressed={kind === 'community'} onClick={() => setKind('community')}>
+          🎟 Community event · free
+        </button>
+        <button type="button" className={kind === 'paid' ? 'on' : ''} aria-pressed={kind === 'paid'} onClick={() => setKind('paid')}>
+          💳 Paid event
+        </button>
+      </div>
       {error?.premiumRequired && !user.isPremium && <PremiumCard onUpgraded={() => setError(null)} />}
       <form className="card stack" onSubmit={submit}>
         <Field label="Community">
@@ -281,6 +323,45 @@ export function EventNew() {
         <Field label="Cover photo URL" hint="optional">
           <input type="url" maxLength={500} value={form.coverUrl} onChange={update('coverUrl')} placeholder="https://…" />
         </Field>
+        {kind === 'paid' && (
+          <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="strong" style={{ marginBottom: 8 }}>
+              Ticket and payment
+            </legend>
+            <div className="form-row">
+              <Field label="Price (Rp)" hint={`${rupiah(meta.payments.minPriceIdr)} – ${rupiah(meta.payments.maxPriceIdr)}`} error={fieldError('Price')}>
+                <input type="number" required min={meta.payments.minPriceIdr} max={meta.payments.maxPriceIdr} step="1000" inputMode="numeric" value={form.priceIdr} onChange={update('priceIdr')} placeholder="150000" />
+              </Field>
+              <Field label="How participants pay" error={fieldError('Payment method')}>
+                <select value={form.paymentMethod} onChange={update('paymentMethod')}>
+                  {gateway && <option value="gateway">Online: QRIS, e-wallet, bank transfer, card (Midtrans)</option>}
+                  <option value="manual">Transfer, confirmed by me via email</option>
+                </select>
+              </Field>
+            </div>
+            <Field
+              label="Payment email"
+              hint={form.paymentMethod === 'manual' ? 'participants send their transfer receipt here' : 'optional, for payment questions'}
+              error={fieldError('Payment email')}
+            >
+              <input type="email" required={form.paymentMethod === 'manual'} maxLength={254} value={form.paymentEmail} onChange={update('paymentEmail')} placeholder="bayar@yourclub.id" />
+            </Field>
+            {form.paymentMethod === 'manual' && (
+              <Field label="Payment instructions" hint="bank account, name, what to write in the transfer note" error={fieldError('Payment instructions')}>
+                <textarea required maxLength={1000} value={form.paymentInstructions} onChange={update('paymentInstructions')} placeholder="Transfer to BCA 123 456 7890 a/n Jakarta Cycling Club, then email the receipt." />
+              </Field>
+            )}
+            {form.paymentMethod === 'manual' ? (
+              <p className="muted small" style={{ margin: 0 }}>
+                A registration holds a spot for 72 hours while you check the transfer. Confirm each payment on the event page.
+              </p>
+            ) : (
+              <p className="muted small" style={{ margin: 0 }}>
+                Participants pay on Midtrans and are confirmed automatically. Unpaid spots are released after an hour.
+              </p>
+            )}
+          </fieldset>
+        )}
         <Field label="Notify people nearby" hint="premium · only people who like this activity, max 1 per day">
           <select value={form.notificationRadiusKm} onChange={update('notificationRadiusKm')}>
             <option value="">Don&apos;t notify nearby people</option>
@@ -293,7 +374,7 @@ export function EventNew() {
         </Field>
         {error && !error.field && <ErrorBox error={error} />}
         <button className="btn primary" disabled={busy}>
-          {busy ? 'Publishing…' : 'Publish event'}
+          {busy ? 'Publishing…' : kind === 'paid' ? 'Publish paid event' : 'Publish event'}
         </button>
       </form>
     </div>

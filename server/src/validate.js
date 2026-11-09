@@ -64,9 +64,9 @@ export function isoDate(value, field, { required = false } = {}) {
   return d.toISOString();
 }
 
-export function email(value) {
-  const s = text(value, 'Email', { max: 254, required: true }).toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw new HttpError(400, 'Email is not valid', { field: 'Email' });
+export function email(value, field = 'Email') {
+  const s = text(value, field, { max: 254, required: true }).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw new HttpError(400, `${field} is not valid`, { field });
   return s;
 }
 

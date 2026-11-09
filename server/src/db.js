@@ -177,16 +177,43 @@ CREATE TABLE IF NOT EXISTS events (
   pace TEXT,
   notification_radius_km INTEGER,
   notified_count INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'community',
+  price_idr INTEGER,
+  payment_method TEXT,
+  payment_email TEXT,
+  payment_instructions TEXT,
   hidden INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- status is 'confirmed', or 'pending' while a paid event waits for payment
+-- (pending rows hold a spot so a paid event can't be oversold).
 CREATE TABLE IF NOT EXISTS event_participants (
   event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'confirmed',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   PRIMARY KEY (event_id, user_id)
 );
+
+-- One row per payment attempt for a paid event. Amounts are whole rupiah.
+CREATE TABLE IF NOT EXISTS event_payments (
+  id INTEGER PRIMARY KEY,
+  order_id TEXT NOT NULL UNIQUE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  method TEXT NOT NULL,
+  amount_idr INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  redirect_url TEXT,
+  payer_note TEXT,
+  provider_status TEXT,
+  provider_ref TEXT,
+  paid_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS payments_event ON event_payments(event_id, user_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY,
@@ -231,7 +258,26 @@ export function openDb(file = ':memory:') {
   db.exec('PRAGMA foreign_keys = ON;');
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+// Columns added after the first release. CREATE TABLE IF NOT EXISTS leaves
+// existing databases alone, so add any column they are missing.
+const ADDED_COLUMNS = [
+  ['events', 'kind', "TEXT NOT NULL DEFAULT 'community'"],
+  ['events', 'price_idr', 'INTEGER'],
+  ['events', 'payment_method', 'TEXT'],
+  ['events', 'payment_email', 'TEXT'],
+  ['events', 'payment_instructions', 'TEXT'],
+  ['event_participants', 'status', "TEXT NOT NULL DEFAULT 'confirmed'"],
+];
+
+export function migrate(db) {
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const has = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+    if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
 }
 
 // Runs fn inside a transaction, rolling back if it throws.

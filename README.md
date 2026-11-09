@@ -80,7 +80,8 @@ Mapped to the PRD's MVP table (§34):
 | Nearby coffee, food and more | ✅ OpenStreetMap Overpass API, falling back to the local `places` table |
 | Communities (basic and premium) | ✅ Public and private communities, member management, announcements |
 | Premium subscription | ⚠️ Simulated: "Start 30-day premium" grants the plan without payment |
-| Events | ✅ Route, meeting pin, capacity, registration, weather |
+| Events | ✅ Route, meeting pin, capacity, registration, weather. Two types: free community events and paid events |
+| Paid events | ✅ Price in rupiah. Online payment through Midtrans Snap when `MIDTRANS_SERVER_KEY` is set (signed webhook, status check on return, unpaid spots released after 1 hour), or manual transfer confirmed by the organizer, with receipts sent to the organizer's payment email. See docs/DEPLOY.md |
 | Nearby event notifications | ✅ Radius 5/10/25/50 km. Respects activity preference, the user's own radius and opt-out, and is capped at 1 per day and 3 per week |
 | SOS | ✅ Alerts the group with your location (cannot be muted), plus a call button for 112 and your emergency contact |
 | Notifications and settings | ✅ In-app with live badge and toasts, with per-type opt-out |
@@ -91,7 +92,8 @@ Mapped to the PRD's MVP table (§34):
 ### Not built yet
 
 - Google/Apple sign-in (email and password only)
-- Real payments for premium (needs a provider such as Midtrans or Xendit)
+- Real payments for premium (paid events already use Midtrans; premium could reuse it)
+- Automatic payouts to paid-event organizers (paid totals are shown; payout is manual)
 - Email delivery (password reset, notifications) and Web Push; notifications are in-app only
 - Photo upload in chat and event covers (cover is a URL field)
 - Map rotation (Leaflet supports zoom and pan only; MapLibre GL would add rotation)
@@ -109,7 +111,9 @@ server/            Express 5 API (ES modules)
   src/places.js    Overpass client with a local fallback
   src/notify.js    notifications and nearby-event fan-out
   src/realtime.js  server-sent events hub
-  src/api/         routers: account, routes, activities, community (+events), misc
+  src/payments.js  Midtrans client, signature check, status mapping
+  src/eventPayments.js  paid-event registration and payment state
+  src/api/         routers: account, routes, activities, community (+events), payments, misc
   src/seed.js      demo data
   test/            node:test suites
 web/               React 19 + Vite + React Router + Leaflet
