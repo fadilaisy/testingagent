@@ -114,6 +114,7 @@ export function CommunityCard({ community }) {
       <div className="row small card-foot">
         <span className="muted">{community.activityLabel}</span>
         {community.privacy === 'private' && <span className="pill">🔒 Private</span>}
+        {community.verifiedOrganizer && <span className="pill brand">✓ Organizer</span>}
         {community.myStatus === 'member' && <span className="pill brand">✓ Member</span>}
         {community.myStatus === 'requested' && <span className="pill">Requested</span>}
       </div>

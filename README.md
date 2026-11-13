@@ -82,8 +82,8 @@ Mapped to the PRD's MVP table (§34):
 | Nearby coffee, food and more | ✅ OpenStreetMap Overpass API, falling back to the local `places` table |
 | Communities (basic and premium) | ✅ Public and private communities, member management, announcements |
 | Premium subscription | ⚠️ Simulated: "Start 30-day premium" grants the plan without payment |
-| Events | ✅ Route, meeting pin, capacity, registration, weather. Two types: free community events and paid events |
-| Paid events | ✅ Price in rupiah. Online payment through Midtrans Snap when `MIDTRANS_SERVER_KEY` is set (signed webhook, status check on return, unpaid spots released after 1 hour), or manual transfer confirmed by the organizer, with receipts sent to the organizer's payment email. See docs/DEPLOY.md |
+| Events | ✅ Route, meeting pin, capacity, registration, weather. Two types: free community events (run by communities) and paid events (run by verified organizers and sponsors, with a "What you get" list such as a finisher medal) |
+| Paid events | ✅ Only organizer profiles approved by a site admin (Admin page) can sell them. Price in rupiah. Online payment through Midtrans Snap when `MIDTRANS_SERVER_KEY` is set (signed webhook, status check on return, unpaid spots released after 1 hour), or manual transfer confirmed by the organizer, with receipts sent to the organizer's payment email. See docs/DEPLOY.md |
 | Nearby event notifications | ✅ Radius 5/10/25/50 km. Respects activity preference, the user's own radius and opt-out, and is capped at 1 per day and 3 per week |
 | SOS | ✅ Alerts the group with your location (cannot be muted), plus a call button for 112 and your emergency contact |
 | Notifications and settings | ✅ In-app with live badge and toasts, with per-type opt-out |

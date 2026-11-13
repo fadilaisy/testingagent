@@ -16,6 +16,11 @@ import { paymentSummary } from '../eventPayments.js';
 import { MAX_PRICE_IDR, MIN_PRICE_IDR, PAYMENT_METHODS } from '../payments.js';
 
 export const EVENT_KINDS = ['community', 'paid'];
+export const COMMUNITY_KINDS = ['community', 'organizer'];
+
+// Paid events are sold by organizations and sponsors that a site admin has
+// checked, not by any community.
+export const isVerifiedOrganizer = (c) => c.kind === 'organizer' && c.organizer_status === 'approved';
 
 export const NOTIFICATION_RADII_KM = [5, 10, 25, 50];
 // Communities whose owner is not premium keep working but are limited
@@ -50,6 +55,10 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
       where.push("EXISTS (SELECT 1 FROM community_members m WHERE m.community_id = c.id AND m.user_id = ? AND m.status = 'member')");
       params.push(viewerId);
     }
+    if (q.kind) {
+      where.push('c.kind = ?');
+      params.push(v.oneOf(q.kind, 'Type', COMMUNITY_KINDS));
+    }
     if (q.activity) {
       where.push('c.activity_type = ?');
       params.push(v.oneOf(q.activity, 'Activity', ACTIVITY_KEYS));
@@ -81,21 +90,32 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     if (db.prepare('SELECT 1 FROM communities WHERE name = ? COLLATE NOCASE AND hidden = 0').get(name)) {
       throw new HttpError(409, 'A community with this name already exists', { field: 'Name' });
     }
+    const kind = v.oneOf(b.kind ?? 'community', 'Type', COMMUNITY_KINDS);
     const id = transaction(db, () => {
       const { id } = db
         .prepare(
-          `INSERT INTO communities (owner_id, name, description, activity_type, location_name, lat, lng, rules, privacy)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          `INSERT INTO communities (owner_id, name, description, activity_type, location_name, lat, lng, rules, privacy, kind, organizer_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         )
         .get(
           req.user.id, name, v.text(b.description, 'Description', { max: 2000 }),
           v.oneOf(b.activityType, 'Activity', ACTIVITY_KEYS, { required: true }),
           v.text(b.locationName, 'Location', { max: 80 }) || null, v.lat(b.lat, 'Latitude'), v.lng(b.lng, 'Longitude'),
           v.text(b.rules, 'Rules', { max: 2000 }), v.oneOf(b.privacy ?? 'public', 'Privacy', ['public', 'private']),
+          kind, kind === 'organizer' ? 'pending' : null,
         );
       db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'admin', 'member')").run(id, req.user.id);
       return id;
     });
+    if (kind === 'organizer') {
+      const admins = db.prepare('SELECT id FROM users WHERE is_admin = 1 AND suspended = 0').all().map((u) => u.id);
+      notifier.notifyMany(admins, {
+        type: 'community',
+        title: `${name} wants to sell paid events`,
+        body: 'Review the organizer in the admin page.',
+        link: '/admin',
+      });
+    }
     res.status(201).json({ community: communitySummary(loadCommunity(id, req.user.id)) });
   });
 
@@ -294,6 +314,12 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
       throw new HttpError(402, 'Nearby notifications need the Premium Community Creator plan', { premiumRequired: true });
     }
     const kind = v.oneOf(b.kind ?? 'community', 'Event type', EVENT_KINDS);
+    if (kind === 'paid' && !isVerifiedOrganizer(c)) {
+      throw new HttpError(403, 'Only verified organizers can sell paid events. Create an organizer profile and wait for approval.', {
+        field: 'Event type',
+      });
+    }
+    const perks = v.list(b.perks, 'What participants get', { maxItems: 10, max: 60 });
     let paid = { price: null, method: null, email: null, instructions: null };
     if (kind === 'paid') {
       paid.price = v.int(b.priceIdr, 'Price', { min: MIN_PRICE_IDR, max: MAX_PRICE_IDR, required: true });
@@ -325,8 +351,8 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
       .prepare(
         `INSERT INTO events (community_id, route_id, created_by, title, description, cover_url, activity_type, starts_at,
            ends_at, meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km,
-           kind, price_idr, payment_method, payment_email, payment_instructions)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+           kind, price_idr, payment_method, payment_email, payment_instructions, perks)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       )
       .get(
         c.id, routeId, req.user.id, v.text(b.title, 'Title', { max: 100, required: true }),
@@ -336,7 +362,7 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
         v.int(b.maxParticipants, 'Maximum participants', { min: 2, max: 10000 }),
         v.oneOf(b.difficulty, 'Difficulty', DIFFICULTIES) ?? route?.difficulty ?? null,
         v.text(b.pace, 'Pace', { max: 40 }) || null, radius,
-        kind, paid.price, paid.method, paid.email, paid.instructions,
+        kind, paid.price, paid.method, paid.email, paid.instructions, JSON.stringify(perks),
       );
 
     const members = memberIds(c.id).filter((id) => id !== req.user.id);

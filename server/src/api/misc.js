@@ -21,6 +21,8 @@ import * as v from '../validate.js';
 import { MAX_PRICE_IDR, MIN_PRICE_IDR } from '../payments.js';
 import { EVENT_KINDS, NOTIFICATION_RADII_KM } from './community.js';
 
+const ORGANIZER_STATUSES = ['pending', 'approved', 'rejected'];
+
 // Preset home locations for onboarding; users can also share GPS instead.
 export const CITIES = [
   { name: 'Jakarta Pusat', lat: -6.1865, lng: 106.8341 },
@@ -49,7 +51,7 @@ export const REPORT_REASONS = {
   other: 'Other',
 };
 
-export function miscRouter({ db, hub, config, payments, google }) {
+export function miscRouter({ db, hub, config, payments, google, notifier }) {
   const router = Router();
 
   // Liveness check for the host: answers only when the database does.
@@ -271,6 +273,7 @@ export function miscRouter({ db, hub, config, payments, google }) {
       communities: count('SELECT COUNT(*) AS n FROM communities'),
       events: count('SELECT COUNT(*) AS n FROM events'),
       openReports: count("SELECT COUNT(*) AS n FROM content_reports WHERE status = 'open'"),
+      pendingOrganizers: count("SELECT COUNT(*) AS n FROM communities WHERE kind = 'organizer' AND organizer_status = 'pending' AND hidden = 0"),
       // North-star metric (PRD §45): users with at least one social/outdoor
       // action in the last 7 days.
       weeklyActiveParticipants: db
@@ -283,6 +286,34 @@ export function miscRouter({ db, hub, config, payments, google }) {
         )
         .get(weekAgo).n,
     });
+  });
+
+  router.get('/admin/organizers', requireUser, requireAdmin, (req, res) => {
+    const status = v.oneOf(req.query.status ?? 'pending', 'Status', ORGANIZER_STATUSES);
+    const rows = db
+      .prepare(
+        `SELECT c.*, u.name AS owner_name, u.email AS owner_email FROM communities c JOIN users u ON u.id = c.owner_id
+         WHERE c.kind = 'organizer' AND c.organizer_status = ? AND c.hidden = 0 ORDER BY c.created_at LIMIT 200`,
+      )
+      .all(status);
+    res.json({ organizers: rows.map((c) => ({ ...communitySummary(c), ownerEmail: c.owner_email })) });
+  });
+
+  router.post('/admin/organizers/:id', requireUser, requireAdmin, (req, res) => {
+    const c = db
+      .prepare("SELECT * FROM communities WHERE id = ? AND kind = 'organizer' AND hidden = 0")
+      .get(v.idParam(req.params.id));
+    if (!c) throw new HttpError(404, 'Organizer not found');
+    const action = v.oneOf(req.body.action, 'Action', ['approve', 'reject'], { required: true });
+    const status = action === 'approve' ? 'approved' : 'rejected';
+    db.prepare('UPDATE communities SET organizer_status = ? WHERE id = ?').run(status, c.id);
+    notifier.notify(c.owner_id, {
+      type: 'community',
+      title: action === 'approve' ? `${c.name} is a verified organizer` : `${c.name} was not approved as an organizer`,
+      body: action === 'approve' ? 'You can now create paid events.' : 'You can still run free community events. Contact the ROAMR team if you think this is a mistake.',
+      link: `/communities/${c.id}`,
+    });
+    res.json({ ok: true, status });
   });
 
   router.get('/admin/reports', requireUser, requireAdmin, (req, res) => {

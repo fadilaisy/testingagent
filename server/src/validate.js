@@ -64,6 +64,14 @@ export function isoDate(value, field, { required = false } = {}) {
   return d.toISOString();
 }
 
+// A short list of strings, given as an array or as text with one item per line.
+export function list(value, field, { maxItems = 10, max = 60 } = {}) {
+  if (value == null || value === '') return [];
+  const items = (Array.isArray(value) ? value : String(value).split('\n')).map((x) => text(x, field, { max })).filter(Boolean);
+  if (items.length > maxItems) throw new HttpError(400, `${field} can have at most ${maxItems} items`, { field });
+  return [...new Set(items)];
+}
+
 export function email(value, field = 'Email') {
   const s = text(value, field, { max: 254, required: true }).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw new HttpError(400, `${field} is not valid`, { field });

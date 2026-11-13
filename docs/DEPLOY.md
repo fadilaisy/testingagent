@@ -108,7 +108,7 @@ Reset links are valid for one hour and work once; only a hash of the token is st
 
 ## Paid events and Midtrans
 
-Events come in two types: **community events** (free) and **paid events** (a price in rupiah). A paid event uses one of two payment methods, chosen by the organizer:
+Events come in two types: **community events** (free, run by any community) and **paid events** (a price in rupiah). Paid events can only be created by an **organizer profile** (an organization or sponsor) that a site admin has approved on the Admin page; ADMIN_EMAILS decides who the site admins are. A paid event uses one of two payment methods, chosen by the organizer:
 
 - **Manual (works with no setup).** The organizer enters a payment email and transfer instructions. A participant who registers holds a spot for 72 hours, transfers the money, emails the receipt and taps "I've transferred". The organizer confirms or rejects each payment in the Payments card on the event page.
 - **Online through Midtrans** (only offered when `MIDTRANS_SERVER_KEY` is set). The participant pays on Midtrans' page with QRIS, e-wallets, virtual accounts or cards and is confirmed automatically by Midtrans' notification. Unpaid spots are released after an hour.

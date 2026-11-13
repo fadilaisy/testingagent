@@ -160,6 +160,11 @@ CREATE TABLE IF NOT EXISTS communities (
   lng REAL,
   rules TEXT NOT NULL DEFAULT '',
   privacy TEXT NOT NULL DEFAULT 'public',
+  -- 'community' (run by people) or 'organizer' (an organization or sponsor
+  -- that sells paid events once a site admin approves it).
+  kind TEXT NOT NULL DEFAULT 'community',
+  -- Organizers only: 'pending', 'approved' or 'rejected'.
+  organizer_status TEXT,
   hidden INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -197,6 +202,8 @@ CREATE TABLE IF NOT EXISTS events (
   payment_method TEXT,
   payment_email TEXT,
   payment_instructions TEXT,
+  -- JSON array of what participants get, e.g. ["Finisher medal", "Jersey"].
+  perks TEXT NOT NULL DEFAULT '[]',
   hidden INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -288,6 +295,9 @@ const ADDED_COLUMNS = [
   ['event_participants', 'status', "TEXT NOT NULL DEFAULT 'confirmed'"],
   ['users', 'google_sub', 'TEXT'],
   ['users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0'],
+  ['communities', 'kind', "TEXT NOT NULL DEFAULT 'community'"],
+  ['communities', 'organizer_status', 'TEXT'],
+  ['events', 'perks', "TEXT NOT NULL DEFAULT '[]'"],
 ];
 
 export function migrate(db) {

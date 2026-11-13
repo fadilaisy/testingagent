@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { CommunityCard, EventCard } from '../components/cards.jsx';
 import { LocationPicker } from '../components/LocationPicker.jsx';
@@ -7,6 +7,12 @@ import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityChips, ActivityPill, Avatar, Empty, ErrorBox, Field, Loaded, Modal, SignInPrompt } from '../components/ui.jsx';
 import { ACTIVITY_EMOJI } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
+
+export function OrganizerPill({ community: c }) {
+  if (c.verifiedOrganizer) return <span className="pill brand">✓ Verified organizer</span>;
+  if (c.kind === 'organizer' && c.organizerStatus === 'pending') return <span className="pill">Organizer · awaiting approval</span>;
+  return null;
+}
 
 export function PremiumCard({ onUpgraded }) {
   const { setUser } = useSession();
@@ -155,8 +161,19 @@ export function CommunityDetail() {
                 <div className="row" style={{ marginBottom: 6 }}>
                   <ActivityPill type={c.activityType} label={c.activityLabel} />
                   {c.privacy === 'private' && <span className="pill">🔒 Private</span>}
+                  <OrganizerPill community={c} />
                 </div>
                 <h1>{c.name}</h1>
+                {c.isAdmin && c.organizerStatus === 'pending' && (
+                  <p className="small muted" style={{ margin: '0 0 6px' }}>
+                    A ROAMR admin is checking this organizer. You can sell paid events once it&apos;s approved, and run free events now.
+                  </p>
+                )}
+                {c.isAdmin && c.organizerStatus === 'rejected' && (
+                  <p className="small muted" style={{ margin: '0 0 6px' }}>
+                    This organizer was not approved for paid events. You can still run free events.
+                  </p>
+                )}
                 <p className="muted" style={{ margin: 0 }}>
                   👥 {c.memberCount.toLocaleString()} members{c.locationName ? ` · ${c.locationName}` : ''}
                 </p>
@@ -297,6 +314,8 @@ export function CommunityDetail() {
 export function CommunityNew() {
   const { user, meta } = useSession();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [kind, setKind] = useState(params.get('kind') === 'organizer' ? 'organizer' : 'community');
   const [form, setForm] = useState({ name: '', description: '', activityType: user.activities?.[0] ?? 'road_cycling', rules: '', privacy: 'public' });
   const [location, setLocation] = useState(user.lat != null ? { locationName: user.locationName, lat: user.lat, lng: user.lng } : null);
   const [error, setError] = useState(null);
@@ -308,7 +327,7 @@ export function CommunityNew() {
     setBusy(true);
     setError(null);
     try {
-      const { community } = await api.post('/communities', { ...form, ...(location ?? {}) });
+      const { community } = await api.post('/communities', { ...form, kind, ...(location ?? {}) });
       navigate(`/communities/${community.id}`);
     } catch (err) {
       setError(err);
@@ -318,11 +337,24 @@ export function CommunityNew() {
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto' }} className="stack">
-      <h1>Create a community</h1>
+      <h1>{kind === 'organizer' ? 'Create an organizer profile' : 'Create a community'}</h1>
+      <div className="tabs" role="group" aria-label="Profile type">
+        <button type="button" className={kind === 'community' ? 'on' : ''} aria-pressed={kind === 'community'} onClick={() => setKind('community')}>
+          👥 Community · run by people
+        </button>
+        <button type="button" className={kind === 'organizer' ? 'on' : ''} aria-pressed={kind === 'organizer'} onClick={() => setKind('organizer')}>
+          🏅 Organizer · organization or sponsor
+        </button>
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        {kind === 'organizer'
+          ? 'For race organizers, brands and sponsors that sell paid events like a 5K with finisher medals. A ROAMR admin checks every organizer before it can sell tickets.'
+          : 'For clubs and groups of friends. Communities run free events for their members and people nearby.'}
+      </p>
       {!user.isPremium && <PremiumCard />}
       <form className="card stack" onSubmit={submit}>
-        <Field label="Name" error={error?.field === 'Name' && error.message}>
-          <input type="text" required maxLength={80} value={form.name} onChange={update('name')} placeholder="Jakarta Cycling Club" />
+        <Field label={kind === 'organizer' ? 'Organization name' : 'Name'} error={error?.field === 'Name' && error.message}>
+          <input type="text" required maxLength={80} value={form.name} onChange={update('name')} placeholder={kind === 'organizer' ? 'Sentul Run Series' : 'Jakarta Cycling Club'} />
         </Field>
         <Field label="Main activity">
           <select value={form.activityType} onChange={update('activityType')}>
@@ -351,7 +383,7 @@ export function CommunityNew() {
         </Field>
         {error && !error.field && <ErrorBox error={error} />}
         <button className="btn primary" disabled={busy || !user.isPremium}>
-          {busy ? 'Creating…' : 'Create community'}
+          {busy ? 'Creating…' : kind === 'organizer' ? 'Submit organizer for approval' : 'Create community'}
         </button>
       </form>
     </div>
