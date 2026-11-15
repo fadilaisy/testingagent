@@ -58,21 +58,9 @@ export function toLocalInput(date) {
 
 export const DIFFICULTY_LABEL = { easy: 'Easy', moderate: 'Moderate', hard: 'Hard', extreme: 'Extreme' };
 
-export const ACTIVITY_EMOJI = {
-  road_cycling: '🚴',
-  gravel: '🚵',
-  mtb: '🚵',
-  running: '🏃',
-  trail_running: '⛰',
-  hiking: '🥾',
-  other: '🧭',
-};
-
 export function conditionLabel(value) {
   return value.replace('_', ' ').replace(/^./, (c) => c.toUpperCase());
 }
-
-export const SEVERITY_DOT = ['🟢', '🟡', '🔴'];
 
 const idrFmt = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
 

@@ -1,12 +1,22 @@
 const L = window.L;
 const TILE_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
-import { useEffect, useRef } from 'react';
+import { createElement, useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
 
-function markerIcon(m) {
-  if (m.emoji) {
-    return L.divIcon({ className: '', html: `<div class="map-emoji">${m.emoji}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
+// Markers with an `icon` (a Lucide component) render as a round badge in the
+// app's icon family; the rest are plain coloured dots. `roots` collects the
+// React roots so they can be unmounted with the markers.
+function markerIcon(m, roots) {
+  if (m.icon) {
+    const el = document.createElement('div');
+    el.className = 'map-icon';
+    if (m.color) el.style.color = m.color;
+    const root = createRoot(el);
+    root.render(createElement(m.icon, { size: 16, strokeWidth: 2.2, 'aria-hidden': true }));
+    roots.push(root);
+    return L.divIcon({ className: '', html: el, iconSize: [30, 30], iconAnchor: [15, 15] });
   }
   return L.divIcon({
     className: '',
@@ -19,13 +29,14 @@ function markerIcon(m) {
 /**
  * Leaflet map with OpenFreeMap vector tiles.
  * - geometry: [[lat, lng, ele], ...] drawn as the route polyline
- * - markers: [{ lat, lng, emoji?, color?, title, subtitle?, link? }]
+ * - markers: [{ lat, lng, icon?, color?, title, subtitle?, link? }]
  * - onPick: when set, clicking the map calls onPick({ lat, lng })
  */
 export function MapView({ geometry, markers = [], center, zoom = 12, tall = false, onPick, label = 'Map' }) {
   const el = useRef(null);
   const map = useRef(null);
   const layer = useRef(null);
+  const roots = useRef([]);
   const navigate = useNavigate();
   const pickRef = useRef(onPick);
   pickRef.current = onPick;
@@ -39,6 +50,9 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
     m.once('focus click', () => m.scrollWheelZoom.enable());
     map.current = m;
     return () => {
+      const stale = roots.current;
+      roots.current = [];
+      setTimeout(() => stale.forEach((r) => r.unmount()), 0);
       m.stop();
       m.off();
       m.remove();
@@ -50,6 +64,11 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
     const group = layer.current;
     if (!m || !group) return;
     group.clearLayers();
+    // Unmount after this render pass; React forbids unmounting a root
+    // synchronously while it is rendering another one.
+    const stale = roots.current;
+    roots.current = [];
+    setTimeout(() => stale.forEach((r) => r.unmount()), 0);
     const bounds = [];
 
     if (geometry?.length) {
@@ -60,7 +79,7 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
     }
 
     for (const mk of markers) {
-      const marker = L.marker([mk.lat, mk.lng], { icon: markerIcon(mk), title: mk.title, keyboard: true }).addTo(group);
+      const marker = L.marker([mk.lat, mk.lng], { icon: markerIcon(mk, roots.current), title: mk.title, keyboard: true }).addTo(group);
       if (mk.title) {
         const box = document.createElement('div');
         const strong = document.createElement('strong');
@@ -75,7 +94,7 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
         if (mk.link) {
           const btn = document.createElement('a');
           btn.href = mk.link;
-          btn.textContent = 'Open →';
+          btn.textContent = 'Open';
           btn.style.display = 'inline-block';
           btn.style.marginTop = '4px';
           btn.addEventListener('click', (e) => {

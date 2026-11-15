@@ -1,6 +1,11 @@
+import { BadgeCheck, Check, Clock, Lock, MapPin, Megaphone, TriangleAlert, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SEVERITY_DOT, ago, conditionLabel, distanceAway, duration, elevation, km, rupiah, when } from '../format.js';
+import { ago, conditionLabel, distanceAway, duration, elevation, km, rupiah, when } from '../format.js';
+import { Ico, SeverityDot, severityTone } from './icons.jsx';
 import { ActIcon, DifficultyPill } from './ui.jsx';
+
+// Pills are kept for things that change what you can do: your own status,
+// a warning, or scarcity. Plain facts go in the meta line as text.
 
 export function RouteCard({ route }) {
   return (
@@ -9,52 +14,85 @@ export function RouteCard({ route }) {
         <ActIcon type={route.activityType} />
         <div className="card-main">
           <h3 className="truncate">{route.name}</h3>
-          <div className="small muted">
+          <div className="small muted num">
             {km(route.distanceM)} · {elevation(route.elevationGain)} · ~{duration(route.estDurationS)}
           </div>
         </div>
         <DifficultyPill value={route.difficulty} />
       </div>
-      <div className="row tiny muted card-foot">
-        <span>
-          {route.activityLabel}
-          {route.locationName ? ` · ${route.locationName}` : ''}
-        </span>
-        {route.upcomingCount > 0 && <span>👥 {route.upcomingCount} upcoming</span>}
-        {route.reportCount > 0 && <span>📣 {route.reportCount} recent reports</span>}
-        {route.distanceFromYouM != null && <span>📍 {distanceAway(route.distanceFromYouM)}</span>}
-        {route.flaggedUnsafe && <span className="pill extreme">⚠️ Flagged unsafe</span>}
+      <div className="meta tiny muted card-foot num">
+        {route.locationName && <span>{route.locationName}</span>}
+        {route.upcomingCount > 0 && (
+          <span>
+            <Ico icon={Users} /> {route.upcomingCount} upcoming
+          </span>
+        )}
+        {route.reportCount > 0 && (
+          <span>
+            <Ico icon={Megaphone} /> {route.reportCount} {route.reportCount === 1 ? 'report' : 'reports'}
+          </span>
+        )}
+        {route.distanceFromYouM != null && (
+          <span>
+            <Ico icon={MapPin} /> {distanceAway(route.distanceFromYouM)}
+          </span>
+        )}
+        {route.flaggedUnsafe && (
+          <span className="pill extreme">
+            <Ico icon={TriangleAlert} /> Flagged unsafe
+          </span>
+        )}
       </div>
     </Link>
   );
 }
 
-export function ActivityCard({ activity }) {
+export function ActivityCard({ activity, featured = false }) {
   const spots = activity.participantLimit ? activity.participantLimit - (activity.participantCount ?? 0) : null;
   return (
-    <Link className="card tight" to={`/activities/${activity.id}`}>
-      <div className="spread">
-        <ActIcon type={activity.activityType} />
-        <div className="row">
-          {activity.visibility === 'private' && <span className="pill">🔒 Private</span>}
-          {activity.myStatus === 'joined' && <span className="pill brand">✓ Joined</span>}
-          {activity.myStatus === 'requested' && <span className="pill">Requested</span>}
-          {spots != null && spots > 0 && <span className={`pill ${spots <= 4 ? 'earth' : 'brand'}`}>{spots} spots left</span>}
-          {spots === 0 && <span className="pill extreme">Full</span>}
+    <Link className={`card tight${featured ? ' featured' : ''}`} to={`/activities/${activity.id}`}>
+      <div className="card-row">
+        <ActIcon type={activity.activityType} size={featured ? 48 : 40} />
+        <div className="card-main">
+          <div className="card-when num">
+            <Ico icon={Clock} /> {when(activity.startsAt)}
+          </div>
+          <h3>{activity.title}</h3>
         </div>
       </div>
-      <h3 className="card-title">{activity.title}</h3>
-      <div className="small muted">
-        🕒 {when(activity.startsAt)}
-        {activity.distanceFromYouM != null ? ` · ${distanceAway(activity.distanceFromYouM)}` : ''}
-      </div>
-      <div className="small muted" style={{ marginTop: 2 }}>
+      <div className="small muted card-foot num">
         {activity.route.name} · {km(activity.route.distanceM)}
         {activity.pace ? ` · ${activity.pace}` : ''}
       </div>
-      <div className="small card-foot">
-        👥 {activity.participantCount ?? 0}
-        {activity.participantLimit ? ` / ${activity.participantLimit}` : ''} going
+      <div className="meta small card-foot num">
+        <span>
+          <Ico icon={Users} /> {activity.participantCount ?? 0}
+          {activity.participantLimit ? ` / ${activity.participantLimit}` : ''} going
+        </span>
+        {activity.distanceFromYouM != null && (
+          <span className="muted">
+            <Ico icon={MapPin} /> {distanceAway(activity.distanceFromYouM)}
+          </span>
+        )}
+        {activity.visibility === 'private' && (
+          <span className="muted">
+            <Ico icon={Lock} /> Private
+          </span>
+        )}
+        <span className="meta-end">
+          {activity.myStatus === 'joined' && (
+            <span className="pill brand">
+              <Ico icon={Check} /> Joined
+            </span>
+          )}
+          {activity.myStatus === 'requested' && <span className="pill">Requested</span>}
+          {!activity.myStatus && spots != null && spots > 0 && spots <= 4 && (
+            <span className="pill accent">
+              {spots} {spots === 1 ? 'spot' : 'spots'} left
+            </span>
+          )}
+          {!activity.myStatus && spots === 0 && <span className="pill extreme">Full</span>}
+        </span>
       </div>
     </Link>
   );
@@ -73,19 +111,27 @@ export function EventCard({ event }) {
         </div>
         <div className="card-main">
           <h3 className="truncate">{event.title}</h3>
-          <div className="small muted">
-            {when(event.startsAt)} · by {event.community.name}
+          <div className="small muted num">
+            {when(event.startsAt)} · {event.community.name}
             {event.route?.distanceM ? ` · ${km(event.route.distanceM)}` : ''}
           </div>
-          <div className="row small" style={{ marginTop: 4 }}>
+          <div className="meta small card-foot num">
+            <span className="strong">{event.kind === 'paid' ? rupiah(event.priceIdr) : 'Free'}</span>
             <span>
-              🎟 {event.participantCount ?? 0}
-              {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} registered
+              <Ico icon={Users} /> {event.participantCount ?? 0}
+              {event.maxParticipants ? ` / ${event.maxParticipants}` : ''}
             </span>
-            {event.distanceFromYouM != null && <span className="muted">📍 {distanceAway(event.distanceFromYouM)}</span>}
-            <EventKindPill event={event} />
-            {event.registered && <span className="pill brand">✓ Registered</span>}
-            {event.myRegistration === 'pending' && <span className="pill earth">Payment pending</span>}
+            {event.distanceFromYouM != null && (
+              <span className="muted">
+                <Ico icon={MapPin} /> {distanceAway(event.distanceFromYouM)}
+              </span>
+            )}
+            {event.registered && (
+              <span className="pill brand">
+                <Ico icon={Check} /> Registered
+              </span>
+            )}
+            {event.myRegistration === 'pending' && <span className="pill accent">Payment pending</span>}
           </div>
         </div>
         <DifficultyPill value={event.difficulty} />
@@ -95,7 +141,7 @@ export function EventCard({ event }) {
 }
 
 export function EventKindPill({ event }) {
-  return event.kind === 'paid' ? <span className="pill earth">💳 {rupiah(event.priceIdr)}</span> : <span className="pill sky">Free</span>;
+  return event.kind === 'paid' ? <span className="pill accent num">{rupiah(event.priceIdr)}</span> : <span className="pill">Free</span>;
 }
 
 export function CommunityCard({ community }) {
@@ -104,45 +150,55 @@ export function CommunityCard({ community }) {
       <div className="card-row">
         <ActIcon type={community.activityType} size={48} />
         <div className="card-main">
-          <h3 className="truncate">{community.name}</h3>
-          <div className="small muted">
-            {community.memberCount?.toLocaleString()} members
+          <h3 className="truncate">
+            {community.name}
+            {community.verifiedOrganizer && (
+              <>
+                {' '}
+                <Ico icon={BadgeCheck} aria-hidden={undefined} aria-label="Verified organizer" className="ico verified" />
+              </>
+            )}
+          </h3>
+          <div className="small muted num">
+            {community.memberCount?.toLocaleString()} {community.memberCount === 1 ? 'member' : 'members'}
             {community.locationName ? ` · ${community.locationName}` : ''}
           </div>
         </div>
-      </div>
-      <div className="row small card-foot">
-        <span className="muted">{community.activityLabel}</span>
-        {community.privacy === 'private' && <span className="pill">🔒 Private</span>}
-        {community.verifiedOrganizer && <span className="pill brand">✓ Organizer</span>}
-        {community.myStatus === 'member' && <span className="pill brand">✓ Member</span>}
+        {community.myStatus === 'member' && (
+          <span className="pill brand">
+            <Ico icon={Check} /> Member
+          </span>
+        )}
         {community.myStatus === 'requested' && <span className="pill">Requested</span>}
+        {!community.myStatus && community.privacy === 'private' && (
+          <span className="muted small nowrap">
+            <Ico icon={Lock} /> Private
+          </span>
+        )}
       </div>
     </Link>
   );
 }
 
-const SEVERITY_TONE = ['good', 'warn', 'bad'];
-
 export function ConditionItem({ report, showRoute = false }) {
   return (
     <div className="condition">
-      <span className={`condition-icon ${SEVERITY_TONE[report.severity] ?? ''}`} aria-hidden="true">
-        {SEVERITY_DOT[report.severity] ?? '⚪'}
+      <span className={`condition-icon ${severityTone(report.severity)}`}>
+        <SeverityDot severity={report.severity} />
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="card-main">
         <div>
           <span className="strong">{report.categoryLabel}:</span> {conditionLabel(report.value)}
-          {report.km != null && <span className="muted"> · KM {report.km}</span>}
+          {report.km != null && <span className="muted num"> · KM {report.km}</span>}
         </div>
         {report.description && <div className="small">{report.description}</div>}
-        <div className="tiny muted">
+        <div className="tiny muted num">
           {showRoute && report.routeName && (
             <>
               <Link to={`/routes/${report.routeId}`}>{report.routeName}</Link> ·{' '}
             </>
           )}
-          {ago(report.createdAt)} · by {report.user.name}
+          {ago(report.createdAt)} · {report.user.name}
         </div>
       </div>
     </div>

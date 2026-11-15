@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
@@ -5,7 +6,8 @@ import { RouteCard } from '../components/cards.jsx';
 import { LocationPicker } from '../components/LocationPicker.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityMultiSelect, Avatar, Empty, ErrorBox, Field, Loaded } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, km } from '../format.js';
+import { Ico, activityIcon } from '../components/icons.jsx';
+import { km } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
 import { PremiumCard } from './Communities.jsx';
 
@@ -37,7 +39,11 @@ export function Profile() {
                         </p>
                       </>
                     )}
-                    {u.private && <p className="muted small">🔒 This profile is private.</p>}
+                    {u.private && (
+                      <p className="muted small">
+                        <Ico icon={Lock} /> This profile is private.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="row">
@@ -61,7 +67,7 @@ export function Profile() {
                 <div className="row" style={{ marginTop: 12 }}>
                   {u.activities.map((a) => (
                     <span key={a} className="pill brand">
-                      {ACTIVITY_EMOJI[a]} {labels[a]}
+                      <Ico icon={activityIcon(a)} /> {labels[a]}
                     </span>
                   ))}
                 </div>
@@ -108,7 +114,7 @@ export function Profile() {
                               <td className="nowrap">{new Date(h.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</td>
                               <td>
                                 <Link to={`/activities/${h.id}`}>
-                                  {ACTIVITY_EMOJI[h.activityType]} {h.title}
+                                  <Ico icon={activityIcon(h.activityType)} /> {h.title}
                                 </Link>
                               </td>
                               <td style={{ textAlign: 'right' }} className="nowrap">
@@ -143,7 +149,7 @@ export function Profile() {
                     <div className="list">
                       {d.communities.map((c) => (
                         <Link key={c.id} to={`/communities/${c.id}`}>
-                          {ACTIVITY_EMOJI[c.activityType]} {c.name}
+                          <Ico icon={activityIcon(c.activityType)} /> {c.name}
                         </Link>
                       ))}
                     </div>

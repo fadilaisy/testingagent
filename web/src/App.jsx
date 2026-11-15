@@ -1,7 +1,7 @@
-import { Activity, Bell, Compass, House, Mountain, Plus, User, Users } from 'lucide-react';
+import { Activity, Bell, Compass, House, Mountain, Plus, User, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Avatar, ErrorBox, NotFound, RequireAuth, Spinner } from './components/ui.jsx';
+import { Avatar, ErrorBox, NotFound, RequireAuth, SkeletonCards } from './components/ui.jsx';
 import { ForgotPassword, Login, Onboarding, Register, ResetPassword } from './pages/Account.jsx';
 import { ActivityDetail } from './pages/ActivityDetail.jsx';
 import { ActivityNew } from './pages/ActivityNew.jsx';
@@ -42,13 +42,18 @@ function TopBar() {
         <input type="search" aria-label="Search routes, communities, events and people" placeholder="Search “Puncak”" value={q} onChange={(e) => setQ(e.target.value)} />
       </form>
       <Link to="/create" className="icon-btn create-btn" aria-label="Create">
-        <Plus size={22} strokeWidth={2.4} />
+        <Plus size={22} strokeWidth={2} />
       </Link>
       {user ? (
         <>
           <Link to="/notifications" className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
             <Bell size={20} />
-            {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
+            {/* Keyed by the count so the badge bumps each time it changes. */}
+            {unread > 0 && (
+              <span className="badge" key={unread}>
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
           </Link>
           <Link to={`/users/${user.id}`} aria-label="Your profile">
             <Avatar name={user.name} />
@@ -139,8 +144,8 @@ function Toast() {
           View
         </Link>
       )}
-      <button type="button" className="btn ghost small" style={{ color: 'inherit' }} onClick={() => setToast(null)} aria-label="Dismiss">
-        ✕
+      <button type="button" className="toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+        <X size={18} aria-hidden="true" />
       </button>
     </div>
   );
@@ -193,7 +198,9 @@ export function App() {
       <div className="shell">
         <div className="content">
           <TopBar />
-          <Spinner />
+          <main>
+            <SkeletonCards count={6} />
+          </main>
         </div>
       </div>
     );

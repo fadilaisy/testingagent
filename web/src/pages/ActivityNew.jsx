@@ -1,9 +1,10 @@
+import { MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { MapView } from '../components/MapView.jsx';
 import { ErrorBox, Field, Loaded } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, duration, km, toLocalInput } from '../format.js';
+import { duration, km, toLocalInput } from '../format.js';
 import { useLoad } from '../session.jsx';
 
 function nextMorning() {
@@ -39,7 +40,7 @@ export function ActivityNew() {
   const markers = useMemo(() => {
     if (!r) return [];
     const m = meeting ?? { lat: r.start[0], lng: r.start[1] };
-    return [{ ...m, emoji: '📍', title: 'Meeting point' }];
+    return [{ ...m, icon: MapPin, color: '#c2410c', title: 'Meeting point' }];
   }, [r, meeting]);
 
   async function submit(e) {
@@ -72,7 +73,7 @@ export function ActivityNew() {
             <div className="spread card tight">
               <div>
                 <strong>
-                  {ACTIVITY_EMOJI[r.activityType]} {r.name}
+                  {r.name}
                 </strong>
                 <div className="small muted">
                   {km(r.distanceM)} · +{r.elevationGain ?? 0} m · ~{duration(r.estDurationS)}
@@ -90,7 +91,7 @@ export function ActivityNew() {
                   <select required value={routeId} onChange={(e) => setRouteId(e.target.value)} size={Math.min(8, Math.max(2, d.routes.length))}>
                     {d.routes.map((x) => (
                       <option key={x.id} value={x.id}>
-                        {ACTIVITY_EMOJI[x.activityType]} {x.name} · {km(x.distanceM)}
+                        {x.name} · {km(x.distanceM)}
                       </option>
                     ))}
                   </select>
@@ -140,7 +141,7 @@ export function ActivityNew() {
           </>
         )}
         {error && !error.field && <ErrorBox error={error} />}
-        <button className="btn primary" disabled={busy || !r}>
+        <button className="btn primary" disabled={busy || !r} aria-busy={busy}>
           {busy ? 'Publishing…' : 'Publish activity'}
         </button>
       </form>

@@ -1,10 +1,12 @@
+import { List, LocateFixed, Map as MapIcon, Ticket, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { ActivityCard, EventCard, RouteCard } from '../components/cards.jsx';
 import { MapView } from '../components/MapView.jsx';
+import { ACTIVITY_STYLE, activityIcon } from '../components/icons.jsx';
 import { ActivityChips, Empty, Loaded } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, km, when } from '../format.js';
+import { km, when } from '../format.js';
 import { getPosition, useLoad, useSession } from '../session.jsx';
 
 const DISTANCES = {
@@ -50,14 +52,14 @@ export function Explore() {
     const list = state.data?.routes ?? state.data?.activities ?? state.data?.events ?? [];
     const out = list.map((x) => {
       if (state.data.routes) {
-        return { lat: x.start[0], lng: x.start[1], emoji: ACTIVITY_EMOJI[x.activityType], title: x.name, subtitle: `${km(x.distanceM)} · ${x.difficulty}`, link: `/routes/${x.id}` };
+        return { lat: x.start[0], lng: x.start[1], icon: activityIcon(x.activityType), color: ACTIVITY_STYLE[x.activityType]?.color, title: x.name, subtitle: `${km(x.distanceM)} · ${x.difficulty}`, link: `/routes/${x.id}` };
       }
       if (state.data.activities) {
-        return { lat: x.meeting[0], lng: x.meeting[1], emoji: ACTIVITY_EMOJI[x.activityType], title: x.title, subtitle: `${when(x.startsAt)} · ${x.participantCount} going`, link: `/activities/${x.id}` };
+        return { lat: x.meeting[0], lng: x.meeting[1], icon: activityIcon(x.activityType), color: ACTIVITY_STYLE[x.activityType]?.color, title: x.title, subtitle: `${when(x.startsAt)} · ${x.participantCount} going`, link: `/activities/${x.id}` };
       }
-      return { lat: x.location[0], lng: x.location[1], emoji: '🎟', title: x.title, subtitle: `${when(x.startsAt)} · ${x.community.name}`, link: `/events/${x.id}` };
+      return { lat: x.location[0], lng: x.location[1], icon: Ticket, color: '#c2410c', title: x.title, subtitle: `${when(x.startsAt)} · ${x.community.name}`, link: `/events/${x.id}` };
     });
-    if (pos) out.push({ lat: pos.lat, lng: pos.lng, color: '#2a6f97', title: 'You are here' });
+    if (pos) out.push({ lat: pos.lat, lng: pos.lng, color: '#2f8fd8', title: 'You are here' });
     return out;
   }, [state.data, pos]);
 
@@ -74,21 +76,21 @@ export function Explore() {
 
   return (
     <>
-      <div className="spread">
-        <h1 style={{ margin: 0 }}>Explore</h1>
+      <div className="spread page-head">
+        <h1>{{ routes: 'Find a route', activities: 'Join an activity', events: 'Enter an event' }[tab] ?? 'Explore'}</h1>
         <div className="row">
           <button type="button" className="btn small" onClick={() => setShowMap((s) => !s)}>
-            {showMap ? '☰ List only' : '🗺 Show map'}
+            {showMap ? <List size={16} aria-hidden="true" /> : <MapIcon size={16} aria-hidden="true" />} {showMap ? 'List only' : 'Show map'}
           </button>
           {tab === 'routes' && (
-            <Link className="btn small primary" to="/routes/new">
-              ⬆ Upload GPX
+            <Link className="btn small" to="/routes/new">
+              <Upload size={16} aria-hidden="true" /> Upload GPX
             </Link>
           )}
         </div>
       </div>
 
-      <div className="stack" style={{ marginTop: 12 }}>
+      <div className="stack filters">
         <div className="tabs" role="tablist">
           {[
             ['routes', 'Routes'],
@@ -142,21 +144,21 @@ export function Explore() {
             </select>
           ) : (
             <button type="button" className="btn small" onClick={locate}>
-              📍 Near me
+              <LocateFixed size={16} aria-hidden="true" /> Near me
             </button>
           )}
         </div>
         {locError && <p className="field-error">{locError}</p>}
       </div>
 
-      <div className="stack" style={{ marginTop: 16 }}>
+      <div className="stack results">
         {showMap && <MapView markers={markers} tall label={`Map of ${tab}`} />}
         <Loaded state={state}>
           {() =>
             items.length ? (
               <>
-                <p className="muted small" style={{ margin: 0 }}>
-                  {state.data.total} {tab}
+                <p className="muted small num" style={{ margin: 0 }}>
+                  {state.data.total} {state.data.total === 1 ? tab.slice(0, -1) : tab}
                 </p>
                 <div className="grid-cards">
                   {tab === 'routes' && items.map((r) => <RouteCard key={r.id} route={r} />)}

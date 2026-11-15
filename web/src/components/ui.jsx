@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { Bike, Compass, Footprints, Mountain, TreePine } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { ACTIVITY_EMOJI, DIFFICULTY_LABEL } from '../format.js';
+import { DIFFICULTY_LABEL } from '../format.js';
+import { ACTIVITY_STYLE, Ico, activityIcon } from './icons.jsx';
 import { useSession } from '../session.jsx';
 
 export function Spinner() {
@@ -22,15 +23,77 @@ export function ErrorBox({ error, children }) {
   );
 }
 
-// Renders loading / error / content for a useLoad() result.
-export function Loaded({ state, children }) {
-  if (state.loading && !state.data) return <Spinner />;
+// Placeholder shaped like the content that is on its way, so the page
+// doesn't jump when the data arrives.
+export function Skeleton({ width = '100%', height = '1em', style }) {
+  return <span className="skel" style={{ width, height, ...style }} aria-hidden="true" />;
+}
+
+export function SkeletonText({ lines = 3 }) {
+  return (
+    <div className="stack skel-text" role="status">
+      <span className="sr-only">Loading</span>
+      {Array.from({ length: lines }, (_, i) => (
+        <Skeleton key={i} width={`${[92, 78, 60, 85][i % 4]}%`} />
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonCards({ count = 3 }) {
+  return (
+    <div className="grid-cards" role="status">
+      <span className="sr-only">Loading</span>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="card tight skel-card" aria-hidden="true">
+          <div className="card-row">
+            <Skeleton width={40} height={40} style={{ borderRadius: 12 }} />
+            <div className="card-main stack" style={{ gap: 8 }}>
+              <Skeleton width="70%" height="1.1em" />
+              <Skeleton width="90%" height="0.8em" />
+            </div>
+          </div>
+          <Skeleton width="45%" height="0.8em" style={{ marginTop: 16 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Detail pages: title, stat tiles, then the two-column body.
+export function SkeletonDetail() {
+  return (
+    <div className="stack" role="status">
+      <span className="sr-only">Loading</span>
+      <Skeleton width="30%" height="1em" />
+      <Skeleton width="65%" height="2em" />
+      <div className="stats">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} height={68} style={{ borderRadius: 16 }} />
+        ))}
+      </div>
+      <div className="grid-2">
+        <Skeleton height={320} style={{ borderRadius: 28 }} />
+        <Skeleton height={320} style={{ borderRadius: 28 }} />
+      </div>
+    </div>
+  );
+}
+
+// Renders loading / error / content for a useLoad() result. The first load
+// shows `skeleton`; a reload keeps the old content on screen, dimmed.
+export function Loaded({ state, children, skeleton = <SkeletonCards /> }) {
+  if (state.loading && !state.data) return skeleton;
   if (state.error) {
     if (state.error.status === 404) return <NotFound />;
     return <ErrorBox error={state.error} />;
   }
   if (!state.data) return null;
-  return children(state.data);
+  return (
+    <div className={`loaded${state.loading ? ' refreshing' : ''}`} aria-busy={state.loading}>
+      {children(state.data)}
+    </div>
+  );
 }
 
 export function NotFound() {
@@ -71,22 +134,11 @@ export function Avatar({ name = '?', size }) {
   );
 }
 
-// Tinted icon tile per activity type, from the Figma design.
-export const ACTIVITY_STYLE = {
-  road_cycling: { Icon: Bike, color: '#2f8fd8' },
-  gravel: { Icon: Bike, color: '#b5682f' },
-  mtb: { Icon: Bike, color: '#14402b' },
-  running: { Icon: Footprints, color: '#d2432f' },
-  trail_running: { Icon: Mountain, color: '#1d5a3c' },
-  hiking: { Icon: TreePine, color: '#8a6a2f' },
-  other: { Icon: Compass, color: '#5a6a62' },
-};
-
 export function ActIcon({ type, size = 40 }) {
   const { Icon, color } = ACTIVITY_STYLE[type] ?? ACTIVITY_STYLE.other;
   return (
     <span className="act-icon" style={{ width: size, height: size, color, background: `${color}1a` }} aria-hidden="true">
-      <Icon size={size * 0.52} strokeWidth={2.2} />
+      <Icon size={size * 0.52} strokeWidth={2} />
     </span>
   );
 }
@@ -99,7 +151,7 @@ export function DifficultyPill({ value }) {
 export function ActivityPill({ type, label }) {
   return (
     <span className="pill brand">
-      {ACTIVITY_EMOJI[type] ?? '🧭'} {label}
+      <Ico icon={activityIcon(type)} /> {label}
     </span>
   );
 }
@@ -123,7 +175,7 @@ export function ActivityChips({ value, onChange, includeAll = true }) {
           aria-pressed={value === a.key}
           onClick={() => onChange(value === a.key && includeAll ? '' : a.key)}
         >
-          {ACTIVITY_EMOJI[a.key]} {a.label}
+          <Ico icon={activityIcon(a.key)} /> {a.label}
         </button>
       ))}
     </div>
@@ -145,7 +197,7 @@ export function ActivityMultiSelect({ value, onChange }) {
           aria-pressed={value.includes(a.key)}
           onClick={() => toggle(a.key)}
         >
-          {ACTIVITY_EMOJI[a.key]} {a.label}
+          <Ico icon={activityIcon(a.key)} /> {a.label}
         </button>
       ))}
     </div>
@@ -161,10 +213,10 @@ export function Modal({ title, onClose, children }) {
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="card modal" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="spread" style={{ marginBottom: 12 }}>
-          <h2 style={{ margin: 0 }}>{title}</h2>
+        <div className="spread modal-head">
+          <h2>{title}</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            ✕
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
         {children}
