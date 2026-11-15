@@ -269,7 +269,7 @@ a.card:active { transform: scale(0.985); }
   .pill.extreme { color: #ff8f8f; }
 }
 
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--space-2); margin: var(--space-4) 0 var(--space-5); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--space-2); margin: var(--space-4) 0 var(--space-5); }
 .card .stats { margin-bottom: 0; }
 .stat { background: var(--surface-2); border-radius: var(--inner, var(--radius-sm)); padding: 12px; text-align: center; }
 .stat .v { font-size: 1.2rem; font-weight: 800; white-space: nowrap; }
