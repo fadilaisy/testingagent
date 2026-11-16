@@ -41,15 +41,16 @@ export function Ico({ icon: Icon, size = '1.05em', ...rest }) {
   return <Icon className="ico" size={size} strokeWidth={2} aria-hidden="true" {...rest} />;
 }
 
-// Tinted icon tile per activity type, from the Figma design.
+// Tinted icon tile per activity type, from the Figma design. Each colour is
+// at least 3:1 on both the light and the dark card surface.
 export const ACTIVITY_STYLE = {
   road_cycling: { Icon: Bike, color: '#2f8fd8' },
   gravel: { Icon: Bike, color: '#b5682f' },
-  mtb: { Icon: Bike, color: '#14402b' },
+  mtb: { Icon: Bike, color: '#2a7d4f' },
   running: { Icon: Footprints, color: '#d2432f' },
-  trail_running: { Icon: Mountain, color: '#1d5a3c' },
+  trail_running: { Icon: Mountain, color: '#1f8a70' },
   hiking: { Icon: TreePine, color: '#8a6a2f' },
-  other: { Icon: Compass, color: '#5a6a62' },
+  other: { Icon: Compass, color: '#6f7f77' },
 };
 export const activityIcon = (type) => (ACTIVITY_STYLE[type] ?? ACTIVITY_STYLE.other).Icon;
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { DIFFICULTY_LABEL } from '../format.js';
@@ -86,7 +86,18 @@ export function Loaded({ state, children, skeleton = <SkeletonCards /> }) {
   if (state.loading && !state.data) return skeleton;
   if (state.error) {
     if (state.error.status === 404) return <NotFound />;
-    return <ErrorBox error={state.error} />;
+    return (
+      <ErrorBox>
+        <div className="spread">
+          <span>{state.error.message}</span>
+          {state.reload && (
+            <button type="button" className="btn small" onClick={state.reload}>
+              Try again
+            </button>
+          )}
+        </div>
+      </ErrorBox>
+    );
   }
   if (!state.data) return null;
   return (
@@ -204,15 +215,23 @@ export function ActivityMultiSelect({ value, onChange }) {
   );
 }
 
+// Closes on Escape, on a click outside and on the X. Focus moves into the
+// dialog when it opens and goes back to the opener when it closes.
 export function Modal({ title, onClose, children }) {
+  const box = useRef(null);
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+  useEffect(() => {
+    const opener = document.activeElement;
+    box.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="card modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="card modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={box}>
         <div className="spread modal-head">
           <h2>{title}</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">

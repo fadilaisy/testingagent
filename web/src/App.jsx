@@ -39,7 +39,24 @@ function TopBar() {
           if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`);
         }}
       >
-        <input type="search" aria-label="Search routes, communities, events and people" placeholder="Search “Puncak”" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="sr-only" htmlFor="top-search">
+          Search routes, events, communities, people and places
+        </label>
+        <input id="top-search" type="search" placeholder="Search routes, events, people" value={q} onChange={(e) => setQ(e.target.value)} />
+        {q && (
+          <button
+            type="button"
+            className="search-clear"
+            aria-label="Clear search"
+            onClick={() => {
+              setQ('');
+              if (location.pathname === '/search') navigate('/explore');
+              document.getElementById('top-search')?.focus();
+            }}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        )}
       </form>
       <Link to="/create" className="icon-btn create-btn" aria-label="Create">
         <Plus size={22} strokeWidth={2} />
@@ -132,7 +149,8 @@ function Toast() {
   const { toast, setToast } = useSession();
   useEffect(() => {
     if (!toast) return undefined;
-    const t = setTimeout(() => setToast(null), toast.urgent ? 15000 : 6000);
+    // Long enough to read twice; urgent ones stay until dismissed or 20s.
+    const t = setTimeout(() => setToast(null), toast.urgent ? 20000 : 8000);
     return () => clearTimeout(t);
   }, [toast, setToast]);
   if (!toast) return null;

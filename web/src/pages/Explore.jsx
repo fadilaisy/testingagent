@@ -63,6 +63,17 @@ export function Explore() {
     return out;
   }, [state.data, pos]);
 
+  const filtered = Boolean(activity || distance || difficulty || text || pos);
+  function clearFilters() {
+    setDistance('');
+    setDifficulty('');
+    setText('');
+    setPos(null);
+    setRadius('');
+    setSort('popular');
+    set('activity', '');
+  }
+
   async function locate() {
     setLocError(null);
     try {
@@ -147,6 +158,11 @@ export function Explore() {
               <LocateFixed size={16} aria-hidden="true" /> Near me
             </button>
           )}
+          {filtered && (
+            <button type="button" className="btn ghost small" onClick={clearFilters}>
+              Clear filters
+            </button>
+          )}
         </div>
         {locError && <p className="field-error">{locError}</p>}
       </div>
@@ -168,7 +184,12 @@ export function Explore() {
               </>
             ) : (
               <Empty>
-                Nothing matches these filters.
+                <p>Nothing matches these filters.</p>
+                {filtered && (
+                  <button type="button" className="btn" onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                )}
                 {tab === 'routes' && (
                   <>
                     {' '}

@@ -112,7 +112,15 @@ export function RouteDetail() {
 
             <div className="grid-2">
               <div className="stack">
-                <MapView geometry={route.geometry} markers={markers} label="Route map" />
+                <MapView
+                  geometry={route.geometry}
+                  markers={markers}
+                  label="Route map"
+                  summary={`${route.name}: ${km(route.distanceM)}${route.elevationGain != null ? ` with ${route.elevationGain} m of climbing` : ''}${route.locationName ? `, ${route.locationName}` : ''}. ${markers
+                    .slice(2)
+                    .map((m) => [m.title, m.subtitle].filter(Boolean).join(', '))
+                    .join('; ')}`}
+                />
                 <div className="card">
                   <h2>Elevation profile</h2>
                   <ElevationChart geometry={route.geometry} />

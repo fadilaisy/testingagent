@@ -1,7 +1,7 @@
 const L = window.L;
 const TILE_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
-import { createElement, useEffect, useRef } from 'react';
+import { createElement, useEffect, useId, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,9 +30,10 @@ function markerIcon(m, roots) {
  * Leaflet map with OpenFreeMap vector tiles.
  * - geometry: [[lat, lng, ele], ...] drawn as the route polyline
  * - markers: [{ lat, lng, icon?, color?, title, subtitle?, link? }]
+ * - summary: text alternative for the map (defaults to the marker titles)
  * - onPick: when set, clicking the map calls onPick({ lat, lng })
  */
-export function MapView({ geometry, markers = [], center, zoom = 12, tall = false, onPick, label = 'Map' }) {
+export function MapView({ geometry, markers = [], center, zoom = 12, tall = false, onPick, label = 'Map', summary }) {
   const el = useRef(null);
   const map = useRef(null);
   const layer = useRef(null);
@@ -117,5 +118,18 @@ export function MapView({ geometry, markers = [], center, zoom = 12, tall = fals
     else m.setView([-6.2, 106.82], 10, opts);
   }, [geometry, markers, center, zoom, navigate]);
 
-  return <div ref={el} className={`map${tall ? ' tall' : ''}`} role="region" aria-label={label} />;
+  // `summary` says in words what the map shows, for people who can't see or
+  // use it. Markers without a summary are listed by title.
+  const text = summary ?? (markers.length ? `${markers.length} ${markers.length === 1 ? 'place' : 'places'} on the map: ${markers.map((m) => [m.title, m.subtitle].filter(Boolean).join(', ')).join('; ')}.` : '');
+  const id = useId();
+  return (
+    <>
+      <div ref={el} className={`map${tall ? ' tall' : ''}`} role="region" aria-label={label} aria-describedby={text ? id : undefined} />
+      {text && (
+        <p id={id} className="sr-only">
+          {text}
+        </p>
+      )}
+    </>
+  );
 }

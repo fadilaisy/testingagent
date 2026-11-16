@@ -153,6 +153,12 @@ export function ActivityDetail() {
     }
   }
 
+  // Leaving drops you from the chat and frees your spot, so ask first.
+  function leave(joined) {
+    const msg = joined ? 'Leave this activity? You will lose the group chat and your spot.' : 'Withdraw your request to join?';
+    if (window.confirm(msg)) act('/leave');
+  }
+
   async function setStatus(status) {
     const msg = status === 'cancelled' ? 'Cancel this activity? Everyone who joined will be notified.' : 'Mark this activity as completed?';
     if (!window.confirm(msg)) return;
@@ -236,16 +242,27 @@ export function ActivityDetail() {
                       {full ? 'Full' : a.visibility === 'private' ? 'Request to join' : 'Join'}
                     </button>
                   )}
+                  {open && !a.myStatus && !started && (
+                    <p className="small muted num" style={{ margin: 0 }}>
+                      {a.route.difficulty ? `${a.route.difficulty[0].toUpperCase()}${a.route.difficulty.slice(1)} route, ` : ''}
+                      {km(a.route.distanceM)}
+                      {a.pace ? ` at ${a.pace}` : ''}
+                      {a.participantLimit ? `, ${Math.max(0, a.participantLimit - a.participantCount)} of ${a.participantLimit} spots left` : ''}.{' '}
+                      {a.visibility === 'private'
+                        ? 'The host approves each request. Once approved you get the group chat, live track updates and check-in.'
+                        : 'Joining adds you to the group chat, live track updates and check-in. You can leave any time.'}
+                    </p>
+                  )}
                   {a.myStatus === 'requested' && (
                     <div className="spread">
                       <span className="muted">Waiting for the host to approve your request.</span>
-                      <button type="button" className="btn small" onClick={() => act('/leave')}>
+                      <button type="button" className="btn small" onClick={() => leave(false)}>
                         Withdraw
                       </button>
                     </div>
                   )}
                   {member && !a.isHost && open && (
-                    <button type="button" className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => act('/leave')} disabled={busy} aria-busy={busy}>
+                    <button type="button" className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => leave(true)} disabled={busy} aria-busy={busy}>
                       Leave activity
                     </button>
                   )}
@@ -284,7 +301,15 @@ export function ActivityDetail() {
                   </div>
                 )}
 
-                <MapView geometry={a.geometry} markers={markers} label="Activity map" />
+                <MapView
+                  geometry={a.geometry}
+                  markers={markers}
+                  label="Activity map"
+                  summary={`${a.route.name}, ${km(a.route.distanceM)}. Meeting point: ${a.meetingPoint}. ${markers
+                    .slice(2, -1)
+                    .map((m) => [m.title, m.subtitle].filter(Boolean).join(', '))
+                    .join('; ')}`}
+                />
 
                 {member && a.status !== 'cancelled' && (
                   <div className="card">
@@ -317,7 +342,14 @@ export function ActivityDetail() {
                   )}
                 </div>
 
-                {member && open && <Sos activityId={a.id} />}
+                {/* SOS is for the ride itself: it shows once you have checked
+                    in or the start time has passed, not while planning. */}
+                {member && open && (a.checkedInAt || started) && <Sos activityId={a.id} />}
+                {member && open && !(a.checkedInAt || started) && (
+                  <p className="small muted sos-note">
+                    <Ico icon={Siren} /> The SOS button appears here once you check in or the activity starts.
+                  </p>
+                )}
 
                 <div className="card">
                   <h2>Track conditions, last 24 hours</h2>
