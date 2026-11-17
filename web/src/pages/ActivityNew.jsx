@@ -85,7 +85,7 @@ export function ActivityNew() {
             </div>
           ) : (
             <div className="stack" style={{ gap: 8 }}>
-              <input type="search" placeholder="Search routes" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" placeholder="Search routes" value={search} onChange={(e) => setSearch(e.target.value)} />
               <Loaded state={routes}>
                 {(d) => (
                   <select required value={routeId} onChange={(e) => setRouteId(e.target.value)} size={Math.min(8, Math.max(2, d.routes.length))}>
@@ -123,7 +123,7 @@ export function ActivityNew() {
                 <input type="datetime-local" required value={form.startsAt} onChange={update('startsAt')} />
               </Field>
               <Field label="Participant limit" hint="optional">
-                <input type="number" min="2" max="500" value={form.participantLimit} onChange={update('participantLimit')} placeholder="No limit" />
+                <input type="number" inputMode="numeric" min="2" max="500" value={form.participantLimit} onChange={update('participantLimit')} placeholder="No limit" />
               </Field>
               <Field label="Pace" hint="optional">
                 <input type="text" maxLength={40} value={form.pace} onChange={update('pace')} placeholder="25–28 km/h" />

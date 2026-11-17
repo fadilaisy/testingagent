@@ -227,7 +227,13 @@ export function Modal({ title, onClose, children }) {
   useEffect(() => {
     const opener = document.activeElement;
     box.current?.focus();
-    return () => opener?.focus?.();
+    // Keep the page behind the sheet from scrolling (iOS scrolls it otherwise).
+    const { overflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = overflow;
+      opener?.focus?.();
+    };
   }, []);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

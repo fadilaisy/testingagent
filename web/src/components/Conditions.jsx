@@ -133,7 +133,7 @@ export function ReportConditionButton({ routeId, activityId, maxKm, onReported, 
             </div>
             <div className="form-row">
               <Field label="Where (KM)" hint="optional">
-                <input type="number" min="0" max={maxKm} step="0.1" value={kmValue} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 18" />
+                <input type="number" inputMode="decimal" min="0" max={maxKm} step="0.1" value={kmValue} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 18" />
               </Field>
             </div>
             <Field label="Details" hint="optional">

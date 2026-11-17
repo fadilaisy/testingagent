@@ -117,7 +117,7 @@ export function Explore() {
         <div className="row">
           {tab === 'routes' && (
             <>
-              <input type="search" aria-label="Search routes" placeholder="Search routes" value={text} onChange={(e) => setText(e.target.value)} style={{ maxWidth: 220 }} />
+              <input type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" aria-label="Search routes" placeholder="Search routes" value={text} onChange={(e) => setText(e.target.value)} style={{ maxWidth: 220 }} />
               <select aria-label="Distance" value={distance} onChange={(e) => setDistance(e.target.value)} style={{ width: 'auto' }}>
                 {Object.entries(DISTANCES).map(([k, l]) => (
                   <option key={k} value={k}>

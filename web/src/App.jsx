@@ -42,7 +42,7 @@ function TopBar() {
         <label className="sr-only" htmlFor="top-search">
           Search routes, events, communities, people and places
         </label>
-        <input id="top-search" type="search" placeholder="Search routes, events, people" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input id="top-search" type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" placeholder="Search routes, events, people" value={q} onChange={(e) => setQ(e.target.value)} />
         {q && (
           <button
             type="button"

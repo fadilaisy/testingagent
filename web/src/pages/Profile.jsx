@@ -258,7 +258,7 @@ export function Settings() {
               <input type="text" maxLength={80} value={form.emergencyName} onChange={update('emergencyName')} />
             </Field>
             <Field label="Phone">
-              <input type="tel" maxLength={30} value={form.emergencyPhone} onChange={update('emergencyPhone')} placeholder="+62 812…" />
+              <input type="tel" autoComplete="tel" maxLength={30} value={form.emergencyPhone} onChange={update('emergencyPhone')} placeholder="+62 812…" />
             </Field>
           </div>
         </div>

@@ -68,7 +68,7 @@ export function CommunityList() {
       <div className="stack" style={{ margin: '12px 0' }}>
         <ActivityChips value={activity} onChange={setActivity} />
         <div className="row">
-          <input type="search" aria-label="Search communities" placeholder="Search communities" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 260 }} />
+          <input type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" aria-label="Search communities" placeholder="Search communities" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 260 }} />
           {user && (
             <label className="check">
               <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Only mine

@@ -351,7 +351,7 @@ export function EventNew() {
         </div>
         <div className="form-row">
           <Field label="Max participants" hint="optional">
-            <input type="number" min="2" value={form.maxParticipants} onChange={update('maxParticipants')} />
+            <input type="number" inputMode="numeric" min="2" value={form.maxParticipants} onChange={update('maxParticipants')} />
           </Field>
           <Field label="Difficulty">
             <select value={form.difficulty} onChange={update('difficulty')}>

@@ -56,9 +56,9 @@ export function PlacesPanel({ routeId, near = 'finish', onPlaces }) {
                   {p.cyclistFriendly ? ' · Cyclist friendly' : ''}
                 </div>
               </div>
-              <div className="stack" style={{ gap: 2, alignItems: 'flex-end' }}>
+              <div className="stack" style={{ gap: 0, alignItems: 'flex-end' }}>
                 <span className="small nowrap num">{distanceAway(p.distanceM)}</span>
-                <a className="tiny" href={`https://www.openstreetmap.org/directions?to=${p.lat}%2C${p.lng}`} target="_blank" rel="noreferrer">
+                <a className="small tap" href={`https://www.openstreetmap.org/directions?to=${p.lat}%2C${p.lng}`} target="_blank" rel="noreferrer">
                   Directions
                 </a>
               </div>

@@ -16,7 +16,11 @@ function markerIcon(m, roots) {
     const root = createRoot(el);
     root.render(createElement(m.icon, { size: 16, strokeWidth: 2.2, 'aria-hidden': true }));
     roots.push(root);
-    return L.divIcon({ className: '', html: el, iconSize: [30, 30], iconAnchor: [15, 15] });
+    // The pin is 30px but its touch target is 44pt, per the iOS guidelines.
+    const hit = document.createElement('div');
+    hit.className = 'map-hit';
+    hit.appendChild(el);
+    return L.divIcon({ className: '', html: hit, iconSize: [44, 44], iconAnchor: [22, 22] });
   }
   return L.divIcon({
     className: '',

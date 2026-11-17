@@ -58,7 +58,9 @@
   --radius-xs: 12px;
   --dur: 0.18s;
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --nav-h: 72px;
+  /* Space the floating tab bar takes at the bottom of a phone screen:
+     12 gap + 60 bar + the home indicator area. */
+  --nav-h: calc(72px + env(safe-area-inset-bottom, 0px));
   color-scheme: light;
   /* SF Pro on Apple devices (system type, per the HIG); Inter, the design's
      face, everywhere else. */
@@ -108,10 +110,17 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); min-height: 100vh; }
+/* Safari on iOS tints its own toolbars from the page background, so html
+   carries it too. Text keeps its size when the phone is turned sideways. */
+html { background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: calc(72px + env(safe-area-inset-top, 0px)); }
+body { margin: 0; background: var(--bg); min-height: 100vh; min-height: 100dvh; -webkit-tap-highlight-color: transparent; }
+/* Controls respond to a tap at once (no double-tap zoom wait) and their
+   labels are not selected or called out by a long press. */
+a, button, select, label, summary, [role='button'] { touch-action: manipulation; }
+button, .btn, .chip, .icon-btn, .tabbar a, .side-nav a, .tabs button, .big-choice { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 ::selection { background: #bfe3cc; }
 a { color: var(--link); text-decoration: none; font-weight: 600; }
-a:hover { text-decoration: underline; }
+@media (hover: hover) { a:hover { text-decoration: underline; } }
 h1, h2, h3 { line-height: 1.15; margin: 0 0 0.5rem; letter-spacing: -0.02em; text-wrap: balance; }
 h1 { font-size: 1.6rem; font-weight: 800; }
 h2 { font-size: 1.25rem; font-weight: 800; }
@@ -128,21 +137,21 @@ img { max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---- Shell: sidebar (desktop), top bar, bottom tabs (mobile) ---------- */
-.shell { min-height: 100vh; }
+.shell { min-height: 100vh; min-height: 100dvh; }
 .content { min-width: 0; }
 
 .sidebar { display: none; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; color: var(--brand); }
-.brand:hover { text-decoration: none; }
+@media (hover: hover) { .brand:hover { text-decoration: none; } }
 .brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--radius-xs); background: var(--select); color: var(--on-select); }
 .side-nav { display: flex; flex-direction: column; gap: 4px; margin-top: 24px; }
 .side-nav a { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 16px; border-radius: var(--radius-xs); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); color: var(--muted); font-weight: 600; }
-.side-nav a:hover { background: var(--surface-2); text-decoration: none; }
+@media (hover: hover) { .side-nav a:hover { background: var(--surface-2); text-decoration: none; } }
 .side-nav a.active, .side-nav a[aria-current='page'] { background: var(--forest-100); color: var(--brand-strong); }
 /* Global create and chat send stay forest so each page keeps one accent action. */
 .side-create { margin-top: 20px; }
 .btn.primary.side-create, .chat-input .btn.primary { background: var(--select); border-color: var(--select); color: var(--on-select); }
-.btn.primary.side-create:hover, .chat-input .btn.primary:hover { background: var(--select-hover); border-color: var(--select-hover); }
+@media (hover: hover) { .btn.primary.side-create:hover, .chat-input .btn.primary:hover { background: var(--select-hover); border-color: var(--select-hover); } }
 
 .topbar {
   position: sticky; top: 0; z-index: 1000;
@@ -158,23 +167,29 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .search-form { position: relative; }
 .search-form input { width: 100%; min-height: 44px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); }
 .icon-btn { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: var(--inner, var(--radius-sm)); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 1.1rem; cursor: pointer; transition: background var(--dur) var(--ease); }
-.icon-btn:hover { text-decoration: none; background: var(--surface-2); }
+@media (hover: hover) { .icon-btn:hover { text-decoration: none; background: var(--surface-2); } }
 .create-btn { background: var(--select); border-color: var(--select); color: var(--on-select); }
-.create-btn:hover { background: var(--select-hover); }
+@media (hover: hover) { .create-btn:hover { background: var(--select-hover); } }
 .badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; animation: bump 0.3s var(--ease); }
 
-main { max-width: 1280px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) + 40px); }
+main { max-width: 1280px; margin: 0 auto; padding: 16px calc(16px + env(safe-area-inset-right, 0px)) calc(var(--nav-h) + 32px) calc(16px + env(safe-area-inset-left, 0px)); }
 
+/* iOS tab bar: a floating glass capsule inset from the screen edges, above
+   the home indicator. The current tab gets a tinted pill, not just colour. */
 .tabbar {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-  display: flex; align-items: flex-end; justify-content: space-around;
-  padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
-  background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: saturate(1.8) blur(16px); -webkit-backdrop-filter: saturate(1.8) blur(16px);
-  border-top: 1px solid var(--border);
+  position: fixed; z-index: 1000;
+  left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  max-width: 520px; margin-inline: auto;
+  display: flex; align-items: stretch; justify-content: space-around; gap: 2px;
+  padding: 4px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: saturate(1.8) blur(24px); -webkit-backdrop-filter: saturate(1.8) blur(24px);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 35%, transparent);
+  box-shadow: 0 8px 28px rgb(17 32 26 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.35);
 }
-.tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; flex: 1; min-height: 52px; color: var(--muted); font-size: 0.6875rem; font-weight: 600; transition: color var(--dur) var(--ease); }
-.tabbar a:hover { text-decoration: none; }
-.tabbar a.active { color: var(--brand); }
+.tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; flex: 1; min-width: 0; min-height: 52px; border-radius: 999px; color: var(--muted); font-size: 0.6875rem; font-weight: 600; transition: color var(--dur) var(--ease), background var(--dur) var(--ease), transform 0.1s var(--ease); }
+.tabbar a:active { transform: scale(0.96); }
+.tabbar a.active { color: var(--brand-strong); background: color-mix(in srgb, var(--brand) 14%, transparent); }
 .tabbar a.active svg { stroke-width: 2.4; }
 
 @media (min-width: 1024px) {
@@ -182,7 +197,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) +
   .content { flex: 1; }
   .sidebar {
     position: sticky; top: 0; display: flex; flex-direction: column; flex: none;
-    width: 256px; height: 100vh; padding: 20px; background: var(--surface); border-right: 1px solid var(--border);
+    width: 256px; height: 100vh; height: 100dvh; padding: 20px; background: var(--surface); border-right: 1px solid var(--border);
   }
   .sidebar .brand { padding: 12px 8px; }
   .topbar { padding: 14px 40px; }
@@ -206,9 +221,14 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) +
 /* Sections are separated by space, not rules: 40 between sections, 12
    from a heading to its own content. */
 .section { margin: var(--space-6) 0 0; }
-.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-3); }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-3); }
 .section-head h2 { margin: 0; }
 .section-head a { flex: none; font-size: 0.875rem; }
+/* Stand-alone links (not links inside a sentence) get a 44pt touch target
+   without changing how they look. */
+.section-head a, summary, a.tap { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
+.topbar .brand { min-width: 44px; min-height: 44px; }
+a:has(> .avatar) { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; }
 .grid-2 > .section { margin-top: var(--space-6); }
 .page-head { align-items: flex-start; margin-bottom: var(--space-4); }
 .page-head h1 { margin-bottom: var(--space-1); }
@@ -231,7 +251,7 @@ h2 { margin-left: -0.03em; }
 .card .card.featured { --pad: 12px; }
 @media (min-width: 1024px) { .card:not(.tight) { --pad: 20px; --radius: 32px; } }
 a.card { display: block; color: inherit; font-weight: inherit; transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
-a.card:hover { text-decoration: none; border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+@media (hover: hover) { a.card:hover { text-decoration: none; border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); } }
 a.card:active { transform: scale(0.985); }
 .card h3 { margin-bottom: var(--space-1); }
 .card > h2 { margin-bottom: var(--space-3); }
@@ -307,22 +327,22 @@ a.card:active { transform: scale(0.985); }
 .btn:has(> svg:first-child) { padding-left: 16px; }
 .btn.small:has(> svg:first-child) { padding-left: 11px; }
 .btn:has(> svg:only-child) { padding-inline: 14px; }
-.btn:hover { text-decoration: none; background: var(--surface-2); }
+@media (hover: hover) { .btn:hover { text-decoration: none; background: var(--surface-2); } }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 /* The one main action on a screen: accent fill, taller, heavier. */
 .btn.primary { min-height: 56px; background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 1.05rem; }
-.btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+@media (hover: hover) { .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); } }
 .btn.primary.small { font-size: 0.875rem; }
 /* Busy buttons show a spinner in place, so a tap visibly registers. */
 .btn[aria-busy='true']::before { content: ''; width: 1em; height: 1em; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
 .btn[aria-busy='true'] > svg { display: none; }
 .btn.danger { background: var(--surface); border-color: var(--danger); color: var(--danger); }
-.btn.danger:hover { background: var(--danger-soft); }
+@media (hover: hover) { .btn.danger:hover { background: var(--danger-soft); } }
 .btn.ghost { min-height: 44px; background: transparent; border-color: transparent; color: var(--link); padding-inline: 8px; }
-.btn.ghost:hover { background: transparent; text-decoration: underline; }
-.btn.small { min-height: 40px; padding: 0 14px; font-size: 0.875rem; gap: 6px; border-radius: var(--inner, var(--radius-xs)); }
-.btn.primary.small { min-height: 40px; }
+@media (hover: hover) { .btn.ghost:hover { background: transparent; text-decoration: underline; } }
+.btn.small { min-height: 44px; padding: 0 14px; font-size: 0.875rem; gap: 6px; border-radius: var(--inner, var(--radius-xs)); }
+.btn.primary.small { min-height: 44px; }
 .btn.block { width: 100%; }
 .btn.sos { min-height: 56px; background: var(--bad); border-color: var(--bad); color: #fff; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.08em; }
 
@@ -330,7 +350,8 @@ a.card:active { transform: scale(0.985); }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease); }
 .chip:has(> svg:first-child) { padding-left: 13px; }
-.chip:hover { background: var(--surface-2); }
+@media (hover: hover) { .chip:hover { background: var(--surface-2); } }
+.chip:active { background: var(--surface-2); }
 .chip.on { background: var(--select); border-color: var(--select); color: var(--on-select); }
 .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -348,7 +369,7 @@ input[type='datetime-local'], input[type='search'], select, textarea {
   width: 100%; min-height: 56px; padding: 10px 16px; border-radius: var(--inner, var(--radius-sm)); border: 1px solid var(--border-strong); background: var(--surface); transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
 /* Fields and selects answer the pointer too, so they don't read as dead chrome. */
-input:hover, select:hover, textarea:hover { border-color: var(--text); }
+@media (hover: hover) { input:hover, select:hover, textarea:hover { border-color: var(--text); } }
 select { cursor: pointer; }
 select:active { background: var(--surface-2); }
 textarea { min-height: 96px; resize: vertical; }
@@ -370,13 +391,16 @@ a.card:focus-visible, .tabbar a:focus-visible { outline-offset: -3px; box-shadow
 
 /* ---- Map & charts ---------------------------------------------------- */
 .map { height: 320px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--map-bg); z-index: 0; }
-.map.tall { height: 62vh; }
-@media (min-width: 1024px) { .map { height: 420px; } .map.tall { height: calc(100vh - 220px); min-height: 480px; } }
+.map.tall { height: 62vh; height: 62dvh; }
+@media (min-width: 1024px) { .map { height: 420px; } .map.tall { height: calc(100dvh - 220px); min-height: 480px; } }
 .map-pin { width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
 .map-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid currentColor; background: #fff; color: #14402b; }
 .leaflet-popup-content-wrapper { border-radius: var(--radius-sm); box-shadow: 0 2px 10px rgb(17 32 26 / 0.18); }
 .leaflet-popup-content { margin: 12px 14px; font-family: inherit; }
 .leaflet-control-zoom a { border-radius: 12px !important; }
+/* 44pt touch targets on the map: zoom buttons, and an invisible halo round each pin. */
+.leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; }
+.map-hit { display: grid; place-items: center; width: 44px; height: 44px; }
 .elevation svg { width: 100%; height: 140px; display: block; }
 .elevation .area { fill: rgb(29 90 60 / 0.25); }
 .elevation .line { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -398,7 +422,7 @@ a.card:focus-visible, .tabbar a:focus-visible { outline-offset: -3px; box-shadow
 .condition-icon.bad { background: rgb(210 67 47 / 0.12); color: var(--danger); }
 .avatar { flex: none; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 0.9rem; border: 2px solid var(--surface); }
 a:has(> .avatar) { border-radius: 50%; transition: box-shadow var(--dur) var(--ease); }
-a:has(> .avatar):hover { box-shadow: 0 0 0 3px var(--brand-soft); }
+@media (hover: hover) { a:has(> .avatar):hover { box-shadow: 0 0 0 3px var(--brand-soft); } }
 a:has(> .avatar):active { box-shadow: 0 0 0 3px var(--border-strong); }
 .avatar.lg { width: 80px; height: 80px; font-size: 1.9rem; }
 .avatars { display: flex; }
@@ -406,7 +430,7 @@ a:has(> .avatar):active { box-shadow: 0 0 0 3px var(--border-strong); }
 .avatars .avatar:first-child { margin-left: 0; }
 
 .chat { display: flex; flex-direction: column; height: 460px; }
-.chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
+.chat-log { flex: 1; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
 .msg { max-width: 80%; padding: 10px 16px; border-radius: 16px; border-bottom-left-radius: 6px; background: var(--surface-2); align-self: flex-start; font-size: 0.94rem; animation: rise 0.22s var(--ease); }
 .msg.mine { align-self: flex-end; background: var(--select); color: var(--on-select); border-radius: 16px; border-bottom-right-radius: 6px; }
 .msg.mine a { color: inherit; text-decoration: underline; }
@@ -469,20 +493,26 @@ h1 .skel { display: inline-block; }
 .alert { animation: rise 0.22s var(--ease); }
 .field-error { animation: rise 0.18s var(--ease); }
 
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 20px); z-index: 2000; max-width: min(520px, calc(100vw - 32px)); background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); display: flex; gap: 12px; align-items: center; font-weight: 600; animation: toast-in 0.24s var(--ease); }
-.search-clear { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
-.search-clear:hover { background: var(--border); color: var(--text); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 12px); z-index: 2000; max-width: min(520px, calc(100vw - 32px)); background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); display: flex; gap: 12px; align-items: center; font-weight: 600; animation: toast-in 0.24s var(--ease); }
+.search-clear { position: absolute; top: 50%; right: 0; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+@media (hover: hover) { .search-clear:hover { background: var(--border); color: var(--text); } }
 .search-form input::-webkit-search-cancel-button { display: none; }
 .search-form:has(.search-clear) input { padding-right: 44px; }
 .sos-note { margin: 0; }
-.toast-close { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: -4px -6px -4px 0; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.toast-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; margin: -10px -12px -10px 0; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
 .toast.urgent { background: var(--bad); color: #fff; }
 .toast a { color: inherit; font-weight: 700; text-decoration: underline; }
 @media (min-width: 1024px) { .toast { bottom: 24px; } }
 
-.modal-backdrop { position: fixed; inset: 0; background: rgb(17 32 26 / 0.5); z-index: 3000; display: flex; align-items: flex-end; justify-content: center; padding: 16px; animation: fade var(--dur) var(--ease); }
-@media (min-width: 700px) { .modal-backdrop { align-items: center; } }
-.modal { width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; animation: rise 0.24s var(--ease); }
+/* On a phone a dialog is a sheet: it rises from the bottom edge with a
+   grabber, keeps clear of the home indicator and scrolls inside itself. */
+.modal-backdrop { position: fixed; inset: 0; background: rgb(17 32 26 / 0.5); z-index: 3000; display: flex; align-items: flex-end; justify-content: center; padding: env(safe-area-inset-top, 0px) 8px max(8px, env(safe-area-inset-bottom, 0px)); overscroll-behavior: contain; animation: fade var(--dur) var(--ease); }
+.modal { position: relative; width: 100%; max-width: 480px; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; animation: rise 0.24s var(--ease); }
+@media (max-width: 699px) {
+  .card.modal { --radius: 32px; --pad: 20px; padding-top: 28px; }
+  .modal::before { content: ''; position: absolute; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--border-strong); opacity: 0.6; }
+}
+@media (min-width: 700px) { .modal-backdrop { align-items: center; padding: 16px; } }
 
 .premium-card { background: var(--accent-soft); color: var(--text); border-color: transparent; }
 .premium-card .muted { color: var(--text); }
@@ -504,18 +534,30 @@ h1 .skel { display: inline-block; }
     :root { font: -apple-system-body; font-family: var(--font); line-height: 1.45; }
   }
 }
+/* iOS date and time fields: keep them inside their container and left
+   aligned like every other field. */
+input[type='datetime-local'], input[type='date'], input[type='time'] { -webkit-appearance: none; appearance: none; min-width: 0; text-align: left; }
+input::-webkit-date-and-time-value { text-align: left; }
+input[type='search'] { -webkit-appearance: none; appearance: none; }
+/* Added to the Home Screen the app has no browser bars, so the page itself
+   must not bounce sideways or select chrome text. */
+@media (display-mode: standalone) {
+  body { overscroll-behavior-x: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .topbar, .tabbar { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .tabbar { border-color: var(--border-strong); }
 }
 /* Windows High Contrast and other forced-colour modes drop backgrounds, so
    states that were shown by fill alone get a system-colour border or fill. */
 @media (forced-colors: active) {
   .card, .stat, .alert, .pill, .date-tile, .act-icon, .condition-icon, .weather-cell, .msg, .toast, .map, .empty { border: 1px solid CanvasText; }
   .chip.on, .tabs button.on, .side-nav a.active, .side-nav a[aria-current='page'], .big-choice.on { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
-  .tabbar a.active { color: Highlight; }
+  .tabbar { border: 1px solid CanvasText; }
+  .tabbar a.active { color: Highlight; outline: 2px solid Highlight; outline-offset: -2px; }
   .btn.primary, .btn.sos, .create-btn { border: 2px solid ButtonText; }
   .btn:disabled { color: GrayText; border-color: GrayText; opacity: 1; }
   .dot { forced-color-adjust: none; border: 2px solid CanvasText; }

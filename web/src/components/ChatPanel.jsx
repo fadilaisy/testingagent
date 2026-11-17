@@ -124,7 +124,7 @@ export function ChatPanel({ activityId, routeId, maxKm, disabled, onReported }) 
             <label className="sr-only" htmlFor="chat-text">
               Message
             </label>
-            <input id="chat-text" type="text" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="Message the group" autoComplete="off" />
+            <input id="chat-text" type="text" enterKeyHint="send" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="Message the group" autoComplete="off" />
             <button className="btn primary" disabled={busy || !text.trim()} aria-busy={busy} aria-label="Send">
               <Send size={20} aria-hidden="true" />
             </button>

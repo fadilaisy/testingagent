@@ -357,7 +357,7 @@ export function ActivityDetail() {
                     <>
                       <ConditionsSummary conditions={conditions.data.conditions} />
                       {conditions.data.reports.length > 0 && (
-                        <Link className="small" to={`/routes/${a.route.id}`} style={{ display: 'inline-block', marginTop: 8 }}>
+                        <Link className="small tap" to={`/routes/${a.route.id}`}>
                           All {conditions.data.reports.length} reports from the last 7 days <Ico icon={ArrowRight} />
                         </Link>
                       )}
