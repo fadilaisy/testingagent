@@ -467,8 +467,8 @@ a:has(> .avatar):active { box-shadow: 0 0 0 3px var(--border-strong); }
 .feed-card { position: relative; --pad: 20px; }
 @media (max-width: 479px) {
   .feed-card { --pad: 16px; }
-  .feed-stats { gap: var(--space-4); }
-  .feed-stats div + div { padding-left: var(--space-4); }
+  .feed-stats { gap: var(--space-3); }
+  .feed-stats div + div { padding-left: var(--space-3); }
   .feed-stats dd { font-size: 1.1rem; }
 }
 .feed-head { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-3); }
