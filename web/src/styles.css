@@ -493,7 +493,7 @@ h1 .skel { display: inline-block; }
 .alert { animation: rise 0.22s var(--ease); }
 .field-error { animation: rise 0.18s var(--ease); }
 
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 12px); z-index: 2000; max-width: min(520px, calc(100vw - 32px)); background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); display: flex; gap: 12px; align-items: center; font-weight: 600; animation: toast-in 0.24s var(--ease); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 12px); z-index: 2000; width: max-content; max-width: min(520px, calc(100vw - 32px)); background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); display: flex; gap: 12px; align-items: center; font-weight: 600; animation: toast-in 0.24s var(--ease); }
 .search-clear { position: absolute; top: 50%; right: 0; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
 @media (hover: hover) { .search-clear:hover { background: var(--border); color: var(--text); } }
 .search-form input::-webkit-search-cancel-button { display: none; }
