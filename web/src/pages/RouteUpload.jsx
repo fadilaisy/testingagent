@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { ElevationChart } from '../components/ElevationChart.jsx';
 import { MapView } from '../components/MapView.jsx';
 import { ErrorBox, Field } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, km } from '../format.js';
+import { km } from '../format.js';
 import { useSession } from '../session.jsx';
 
 // GPX upload & route creation (PRD §10, FR-03..06).
@@ -90,14 +90,14 @@ export function RouteUpload() {
         )}
 
         <Field label="Route name" error={error?.field === 'Route name' && error.message}>
-          <input type="text" required maxLength={100} value={form.name} onChange={update('name')} placeholder="BSD → Puncak" />
+          <input type="text" required maxLength={100} value={form.name} onChange={update('name')} placeholder="BSD to Puncak" />
         </Field>
         <div className="form-row">
           <Field label="Activity">
             <select value={form.activityType} onChange={update('activityType')}>
               {meta.activityTypes.map((a) => (
                 <option key={a.key} value={a.key}>
-                  {ACTIVITY_EMOJI[a.key]} {a.label}
+                  {a.label}
                 </option>
               ))}
             </select>
@@ -135,7 +135,7 @@ export function RouteUpload() {
           </Field>
         </div>
         {error && !error.field && <ErrorBox error={error} />}
-        <button className="btn primary" disabled={busy || !file || !preview}>
+        <button className="btn primary" disabled={busy || !file || !preview} aria-busy={busy}>
           {busy ? 'Publishing…' : 'Publish route'}
         </button>
       </form>

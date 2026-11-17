@@ -1,7 +1,10 @@
+import { Star } from 'lucide-react';
 import { useState } from 'react';
 import { api, qs } from '../api.js';
 import { distanceAway } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
+import { Ico, placeIcon } from './icons.jsx';
+import { SkeletonText } from './ui.jsx';
 
 const FINISH_CATEGORIES = ['coffee', 'food', 'recovery', 'bike_shop', 'convenience'];
 
@@ -26,11 +29,11 @@ export function PlacesPanel({ routeId, near = 'finish', onPlaces }) {
         </button>
         {FINISH_CATEGORIES.map((c) => (
           <button type="button" key={c} className={`chip${category === c ? ' on' : ''}`} onClick={() => setCategory(c)}>
-            {cats[c]?.emoji} {cats[c]?.label}
+            <Ico icon={placeIcon(c)} /> {cats[c]?.label}
           </button>
         ))}
       </div>
-      {state.loading && <p className="muted small">Finding places…</p>}
+      {state.loading && !state.data && <SkeletonText lines={4} />}
       {state.error && <p className="muted small">{state.error.message}</p>}
       {state.data && state.data.places.length === 0 && <p className="muted small">Nothing found within 1.5 km.</p>}
       {state.data && state.data.places.length > 0 && (
@@ -39,18 +42,23 @@ export function PlacesPanel({ routeId, near = 'finish', onPlaces }) {
             <div key={p.id} className="spread" style={{ flexWrap: 'nowrap' }}>
               <div>
                 <div>
-                  {p.emoji} <strong>{p.name}</strong>
-                  {p.cyclistFriendly && <span className="pill brand" style={{ marginLeft: 6 }}>Cyclist friendly</span>}
+                  <Ico icon={placeIcon(p.category)} /> <strong>{p.name}</strong>
                 </div>
-                <div className="tiny muted">
+                <div className="tiny muted num">
                   {p.label}
                   {p.openingHours ? ` · ${p.openingHours}` : ''}
-                  {p.rating ? ` · ★ ${p.rating}` : ''}
+                  {p.rating && (
+                    <>
+                      {' · '}
+                      <Ico icon={Star} /> {p.rating}
+                    </>
+                  )}
+                  {p.cyclistFriendly ? ' · Cyclist friendly' : ''}
                 </div>
               </div>
-              <div className="stack" style={{ gap: 2, alignItems: 'flex-end' }}>
-                <span className="small nowrap">{distanceAway(p.distanceM)}</span>
-                <a className="tiny" href={`https://www.openstreetmap.org/directions?to=${p.lat}%2C${p.lng}`} target="_blank" rel="noreferrer">
+              <div className="stack" style={{ gap: 0, alignItems: 'flex-end' }}>
+                <span className="small nowrap num">{distanceAway(p.distanceM)}</span>
+                <a className="small tap" href={`https://www.openstreetmap.org/directions?to=${p.lat}%2C${p.lng}`} target="_blank" rel="noreferrer">
                   Directions
                 </a>
               </div>

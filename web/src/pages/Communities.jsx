@@ -1,3 +1,4 @@
+import { BadgeCheck, Lock, Megaphone, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
@@ -5,11 +6,11 @@ import { CommunityCard, EventCard } from '../components/cards.jsx';
 import { LocationPicker } from '../components/LocationPicker.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityChips, ActivityPill, Avatar, Empty, ErrorBox, Field, Loaded, Modal, SignInPrompt } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI } from '../format.js';
+import { Ico } from '../components/icons.jsx';
 import { useLoad, useSession } from '../session.jsx';
 
 export function OrganizerPill({ community: c }) {
-  if (c.verifiedOrganizer) return <span className="pill brand">✓ Verified organizer</span>;
+  if (c.verifiedOrganizer) return <span className="pill brand"><Ico icon={BadgeCheck} /> Verified organizer</span>;
   if (c.kind === 'organizer' && c.organizerStatus === 'pending') return <span className="pill">Organizer · awaiting approval</span>;
   return null;
 }
@@ -41,7 +42,7 @@ export function PremiumCard({ onUpgraded }) {
         Planned price Rp49.000–99.000 / month. Payments aren&apos;t connected yet, so this demo grants 30 days free.
       </p>
       <ErrorBox error={error} />
-      <button type="button" className="btn" onClick={upgrade} disabled={busy} style={{ alignSelf: 'flex-start' }}>
+      <button type="button" className="btn" onClick={upgrade} disabled={busy} aria-busy={busy} style={{ alignSelf: 'flex-start' }}>
         {busy ? 'Activating…' : 'Start 30-day premium (demo)'}
       </button>
     </div>
@@ -67,7 +68,7 @@ export function CommunityList() {
       <div className="stack" style={{ margin: '12px 0' }}>
         <ActivityChips value={activity} onChange={setActivity} />
         <div className="row">
-          <input type="search" aria-label="Search communities" placeholder="Search communities" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 260 }} />
+          <input type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" aria-label="Search communities" placeholder="Search communities" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 260 }} />
           {user && (
             <label className="check">
               <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Only mine
@@ -109,7 +110,7 @@ function Announce({ communityId }) {
   return (
     <>
       <button type="button" className="btn small" onClick={() => setOpen(true)}>
-        📢 Announcement
+        <Megaphone size={16} aria-hidden="true" /> Announcement
       </button>
       {open && (
         <Modal title="Send an announcement" onClose={() => setOpen(false)}>
@@ -160,7 +161,7 @@ export function CommunityDetail() {
               <div>
                 <div className="row" style={{ marginBottom: 6 }}>
                   <ActivityPill type={c.activityType} label={c.activityLabel} />
-                  {c.privacy === 'private' && <span className="pill">🔒 Private</span>}
+                  {c.privacy === 'private' && <span className="pill"><Ico icon={Lock} /> Private</span>}
                   <OrganizerPill community={c} />
                 </div>
                 <h1>{c.name}</h1>
@@ -175,7 +176,7 @@ export function CommunityDetail() {
                   </p>
                 )}
                 <p className="muted" style={{ margin: 0 }}>
-                  👥 {c.memberCount.toLocaleString()} members{c.locationName ? ` · ${c.locationName}` : ''}
+                  <Ico icon={Users} /> {c.memberCount.toLocaleString()} {c.memberCount === 1 ? 'member' : 'members'}{c.locationName ? ` · ${c.locationName}` : ''}
                 </p>
               </div>
               <div className="row">
@@ -340,10 +341,10 @@ export function CommunityNew() {
       <h1>{kind === 'organizer' ? 'Create an organizer profile' : 'Create a community'}</h1>
       <div className="tabs" role="group" aria-label="Profile type">
         <button type="button" className={kind === 'community' ? 'on' : ''} aria-pressed={kind === 'community'} onClick={() => setKind('community')}>
-          👥 Community · run by people
+          Community · run by people
         </button>
         <button type="button" className={kind === 'organizer' ? 'on' : ''} aria-pressed={kind === 'organizer'} onClick={() => setKind('organizer')}>
-          🏅 Organizer · organization or sponsor
+          Organizer · organization or sponsor
         </button>
       </div>
       <p className="muted small" style={{ margin: 0 }}>
@@ -360,7 +361,7 @@ export function CommunityNew() {
           <select value={form.activityType} onChange={update('activityType')}>
             {meta.activityTypes.map((a) => (
               <option key={a.key} value={a.key}>
-                {ACTIVITY_EMOJI[a.key]} {a.label}
+                {a.label}
               </option>
             ))}
           </select>
@@ -382,7 +383,7 @@ export function CommunityNew() {
           </select>
         </Field>
         {error && !error.field && <ErrorBox error={error} />}
-        <button className="btn primary" disabled={busy || !user.isPremium}>
+        <button className="btn primary" disabled={busy || !user.isPremium} aria-busy={busy}>
           {busy ? 'Creating…' : kind === 'organizer' ? 'Submit organizer for approval' : 'Create community'}
         </button>
       </form>

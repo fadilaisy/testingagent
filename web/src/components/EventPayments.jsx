@@ -45,7 +45,7 @@ export function PaidRegistration({ event: e, past, full, onChange }) {
     return (
       <div className="stack">
         <div className="spread">
-          <span className="pill brand">✓ You&apos;re registered{p?.status === 'paid' ? ` · paid ${rupiah(p.amountIdr)}` : ''}</span>
+          <span className="pill brand pop">You&apos;re registered{p?.status === 'paid' ? ` · paid ${rupiah(p.amountIdr)}` : ''}</span>
         </div>
         {!past && e.paymentEmail && (
           <p className="muted small" style={{ margin: 0 }}>
@@ -69,7 +69,7 @@ export function PaidRegistration({ event: e, past, full, onChange }) {
                 Continue payment
               </a>
             )}
-            <button type="button" className="btn" disabled={busy} onClick={() => run(() => api.post(`/events/${e.id}/payment/refresh`))}>
+            <button type="button" className="btn" disabled={busy} aria-busy={busy} onClick={() => run(() => api.post(`/events/${e.id}/payment/refresh`))}>
               I&apos;ve paid, check again
             </button>
           </div>
@@ -94,14 +94,14 @@ export function PaidRegistration({ event: e, past, full, onChange }) {
               <Field label="Tell the organizer you've paid" hint="bank, sender name, time">
                 <input type="text" required maxLength={300} value={note} onChange={(ev) => setNote(ev.target.value)} placeholder="BCA a/n Kevin, 10:15" />
               </Field>
-              <button className="btn" disabled={busy}>
+              <button className="btn" disabled={busy} aria-busy={busy}>
                 {p.payerNote ? 'Update payment details' : 'I’ve transferred'}
               </button>
             </form>
           </>
         )}
         <ErrorBox error={error} />
-        <button type="button" className="btn small" disabled={busy} onClick={() => run(() => api.post(`/events/${e.id}/unregister`))}>
+        <button type="button" className="btn small" disabled={busy} aria-busy={busy} onClick={() => run(() => api.post(`/events/${e.id}/unregister`))}>
           Cancel registration
         </button>
       </div>
@@ -167,7 +167,7 @@ export function PaymentsPanel({ eventId, onChange }) {
                 <span className="row">
                   <Avatar name={p.user.name} /> {p.user.name}
                 </span>
-                <span className={`pill ${p.status === 'paid' ? 'brand' : 'earth'}`}>{STATUS_LABEL[p.status] ?? p.status}</span>
+                <span className={`pill ${p.status === 'paid' ? 'brand' : 'accent'}`}>{STATUS_LABEL[p.status] ?? p.status}</span>
               </div>
               <div className="small muted">
                 {p.user.email} · {p.orderId} · {rupiah(p.amountIdr)} · {p.method === 'gateway' ? 'online' : 'transfer'} · {ago(p.createdAt)}

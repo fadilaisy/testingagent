@@ -1,3 +1,4 @@
+import { ArrowRight, Check, Lock, MapPin, Phone, Route, Siren } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
@@ -6,7 +7,8 @@ import { ConditionsSummary } from '../components/Conditions.jsx';
 import { MapView } from '../components/MapView.jsx';
 import { PlacesPanel } from '../components/PlacesPanel.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
-import { ActivityPill, Avatar, DifficultyPill, ErrorBox, Loaded, Modal, SignInPrompt } from '../components/ui.jsx';
+import { Ico } from '../components/icons.jsx';
+import { ActivityPill, Avatar, DifficultyPill, ErrorBox, Loaded, Modal, SignInPrompt, SkeletonDetail, SkeletonText } from '../components/ui.jsx';
 import { WeatherPanel } from '../components/WeatherPanel.jsx';
 import { duration, km, longDate, time } from '../format.js';
 import { getPosition, useLoad, useSession } from '../session.jsx';
@@ -34,7 +36,9 @@ function CheckIn({ activity, onDone }) {
   if (activity.checkedInAt) {
     return (
       <div className="stack">
-        <div className="alert ok">✓ You checked in at {time(activity.checkedInAt)}. Have a great one!</div>
+        <div className="alert ok pop">
+          <Ico icon={Check} /> You checked in at {time(activity.checkedInAt)}. Have a great one!
+        </div>
         <h3 style={{ margin: 0 }}>Where do you want to finish?</h3>
         <PlacesPanel routeId={activity.route.id} />
       </div>
@@ -45,11 +49,11 @@ function CheckIn({ activity, onDone }) {
       <p className="small muted" style={{ margin: 0 }}>
         When you arrive at the meeting point or on the route, check in so the group knows you&apos;re here. We&apos;ll suggest places to finish.
       </p>
-      <button type="button" className="btn primary" onClick={() => checkIn()} disabled={busy}>
-        📍 {busy ? 'Checking location…' : "I'm here, check in"}
+      <button type="button" className="btn primary" onClick={() => checkIn()} disabled={busy} aria-busy={busy}>
+        {!busy && <MapPin size={20} aria-hidden="true" />} {busy ? 'Checking location…' : "I'm here, check in"}
       </button>
       {meta.demoMode && (
-        <button type="button" className="btn small" onClick={() => checkIn({ lat: activity.meeting[0], lng: activity.meeting[1] })} disabled={busy}>
+        <button type="button" className="btn small" onClick={() => checkIn({ lat: activity.meeting[0], lng: activity.meeting[1] })} disabled={busy} aria-busy={busy}>
           Demo: check in as if at the meeting point
         </button>
       )}
@@ -87,20 +91,20 @@ function Sos({ activityId }) {
   return (
     <>
       <button type="button" className="btn sos block" onClick={() => setOpen(true)}>
-        🆘 SOS
+        <Siren size={20} aria-hidden="true" /> SOS
       </button>
       {open && (
         <Modal title="Emergency" onClose={() => setOpen(false)}>
           <div className="stack">
             <a className="btn danger block" href="tel:112">
-              📞 Call 112 (emergency services)
+              <Phone size={18} aria-hidden="true" /> Call 112 (emergency services)
             </a>
             {result ? (
               <>
                 <div className="alert ok">Your group was alerted{result.message.data ? ' with your location' : ''}.</div>
                 {result.emergencyContact ? (
                   <a className="btn block" href={`tel:${result.emergencyContact.phone.replace(/\s/g, '')}`}>
-                    📞 Call {result.emergencyContact.name ?? 'emergency contact'} ({result.emergencyContact.phone})
+                    <Phone size={18} aria-hidden="true" /> Call {result.emergencyContact.name ?? 'emergency contact'} ({result.emergencyContact.phone})
                   </a>
                 ) : (
                   <p className="small muted">
@@ -109,7 +113,7 @@ function Sos({ activityId }) {
                 )}
               </>
             ) : (
-              <button type="button" className="btn sos block" onClick={send} disabled={busy}>
+              <button type="button" className="btn sos block" onClick={send} disabled={busy} aria-busy={busy}>
                 {busy ? 'Alerting…' : 'Alert my group with my location'}
               </button>
             )}
@@ -134,7 +138,7 @@ export function ActivityDetail() {
     if (!state.data) return [];
     const a = state.data.activity;
     const reports = (conditions.data?.reports ?? []).filter((r) => r.km != null).slice(0, 10);
-    return [...routeMarkers(a.geometry, reports), { lat: a.meeting[0], lng: a.meeting[1], emoji: '📍', title: 'Meeting point', subtitle: a.meetingPoint }];
+    return [...routeMarkers(a.geometry, reports), { lat: a.meeting[0], lng: a.meeting[1], icon: MapPin, color: '#c2410c', title: 'Meeting point', subtitle: a.meetingPoint }];
   }, [state.data, conditions.data]);
 
   async function act(path, body) {
@@ -149,6 +153,12 @@ export function ActivityDetail() {
     }
   }
 
+  // Leaving drops you from the chat and frees your spot, so ask first.
+  function leave(joined) {
+    const msg = joined ? 'Leave this activity? You will lose the group chat and your spot.' : 'Withdraw your request to join?';
+    if (window.confirm(msg)) act('/leave');
+  }
+
   async function setStatus(status) {
     const msg = status === 'cancelled' ? 'Cancel this activity? Everyone who joined will be notified.' : 'Mark this activity as completed?';
     if (!window.confirm(msg)) return;
@@ -161,7 +171,7 @@ export function ActivityDetail() {
   }
 
   return (
-    <Loaded state={state}>
+    <Loaded state={state} skeleton={<SkeletonDetail />}>
       {({ activity: a, participants, requests }) => {
         const member = a.myStatus === 'joined';
         const open = a.status === 'open';
@@ -171,17 +181,19 @@ export function ActivityDetail() {
           <>
             {a.status === 'cancelled' && <div className="alert danger">This activity was cancelled.</div>}
             {a.status === 'completed' && <div className="alert ok">This activity is completed.</div>}
-            <div className="spread" style={{ alignItems: 'flex-start', marginTop: 8 }}>
+            <div className="spread page-head">
               <div>
-                <div className="row" style={{ marginBottom: 6 }}>
+                <div className="row eyebrow">
                   <ActivityPill type={a.activityType} label={a.activityLabel} />
                   <DifficultyPill value={a.route.difficulty} />
-                  {a.visibility === 'private' && <span className="pill">🔒 Private</span>}
+                  {a.visibility === 'private' && (
+                    <span className="pill">
+                      <Ico icon={Lock} /> Private
+                    </span>
+                  )}
                 </div>
                 <h1>{a.title}</h1>
-                <p className="strong" style={{ color: 'var(--brand)', margin: 0 }}>
-                  {longDate(a.startsAt)}
-                </p>
+                <p className="lede num">{longDate(a.startsAt)}</p>
                 <p className="muted small" style={{ margin: 0 }}>
                   Hosted by <Link to={`/users/${a.host.id}`}>{a.host.name}</Link>
                 </p>
@@ -189,7 +201,7 @@ export function ActivityDetail() {
               <ReportButton targetType="activity" targetId={a.id} />
             </div>
 
-            <div className="stats" style={{ margin: '16px 0' }}>
+            <div className="stats">
               <div className="stat">
                 <div className="v">{km(a.route.distanceM)}</div>
                 <div className="l">Distance</div>
@@ -207,41 +219,50 @@ export function ActivityDetail() {
                   {a.participantCount}
                   {a.participantLimit ? ` / ${a.participantLimit}` : ''}
                 </div>
-                <div className="l">Participants</div>
+                <div className="l">Going</div>
               </div>
             </div>
 
             <div className="grid-2">
               <div className="stack">
                 <div className="card stack">
-                  <div>
-                    <div className="small muted">Route</div>
-                    <Link to={`/routes/${a.route.id}`} className="strong">
-                      {a.route.name} →
+                  <div className="facts">
+                    <Link to={`/routes/${a.route.id}`}>
+                      <Ico icon={Route} aria-hidden={undefined} aria-label="Route" /> {a.route.name}
                     </Link>
-                  </div>
-                  <div>
-                    <div className="small muted">Meeting point</div>
-                    <div className="strong">📍 {a.meetingPoint}</div>
+                    <div className="strong">
+                      <Ico icon={MapPin} aria-hidden={undefined} aria-label="Meeting point" /> {a.meetingPoint}
+                    </div>
                   </div>
                   {a.description && <p style={{ whiteSpace: 'pre-line', margin: 0 }}>{a.description}</p>}
                   <ErrorBox error={error} />
                   {!user && open && <SignInPrompt />}
                   {user && open && !a.myStatus && !started && (
-                    <button type="button" className="btn primary block" disabled={busy || full} onClick={() => act('/join')}>
+                    <button type="button" className="btn primary block" disabled={busy || full} aria-busy={busy} onClick={() => act('/join')}>
                       {full ? 'Full' : a.visibility === 'private' ? 'Request to join' : 'Join'}
                     </button>
+                  )}
+                  {open && !a.myStatus && !started && (
+                    <p className="small muted num" style={{ margin: 0 }}>
+                      {a.route.difficulty ? `${a.route.difficulty[0].toUpperCase()}${a.route.difficulty.slice(1)} route, ` : ''}
+                      {km(a.route.distanceM)}
+                      {a.pace ? ` at ${a.pace}` : ''}
+                      {a.participantLimit ? `, ${Math.max(0, a.participantLimit - a.participantCount)} of ${a.participantLimit} spots left` : ''}.{' '}
+                      {a.visibility === 'private'
+                        ? 'The host approves each request. Once approved you get the group chat, live track updates and check-in.'
+                        : 'Joining adds you to the group chat, live track updates and check-in. You can leave any time.'}
+                    </p>
                   )}
                   {a.myStatus === 'requested' && (
                     <div className="spread">
                       <span className="muted">Waiting for the host to approve your request.</span>
-                      <button type="button" className="btn small" onClick={() => act('/leave')}>
+                      <button type="button" className="btn small" onClick={() => leave(false)}>
                         Withdraw
                       </button>
                     </div>
                   )}
                   {member && !a.isHost && open && (
-                    <button type="button" className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => act('/leave')} disabled={busy}>
+                    <button type="button" className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => leave(true)} disabled={busy} aria-busy={busy}>
                       Leave activity
                     </button>
                   )}
@@ -280,17 +301,25 @@ export function ActivityDetail() {
                   </div>
                 )}
 
-                <MapView geometry={a.geometry} markers={markers} label="Activity map" />
+                <MapView
+                  geometry={a.geometry}
+                  markers={markers}
+                  label="Activity map"
+                  summary={`${a.route.name}, ${km(a.route.distanceM)}. Meeting point: ${a.meetingPoint}. ${markers
+                    .slice(2, -1)
+                    .map((m) => [m.title, m.subtitle].filter(Boolean).join(', '))
+                    .join('; ')}`}
+                />
 
                 {member && a.status !== 'cancelled' && (
                   <div className="card">
-                    <h2>Check in</h2>
+                    <h2>{a.checkedInAt ? 'You\u2019re checked in' : 'Check in when you arrive'}</h2>
                     <CheckIn activity={a} onDone={state.reload} />
                   </div>
                 )}
 
                 <div className="card">
-                  <h2>Weather for this activity</h2>
+                  <h2>Weather along the way at start time</h2>
                   <WeatherPanel routeId={a.route.id} startsAt={a.startsAt} />
                 </div>
               </div>
@@ -313,26 +342,33 @@ export function ActivityDetail() {
                   )}
                 </div>
 
-                {member && open && <Sos activityId={a.id} />}
+                {/* SOS is for the ride itself: it shows once you have checked
+                    in or the start time has passed, not while planning. */}
+                {member && open && (a.checkedInAt || started) && <Sos activityId={a.id} />}
+                {member && open && !(a.checkedInAt || started) && (
+                  <p className="small muted sos-note">
+                    <Ico icon={Siren} /> The SOS button appears here once you check in or the activity starts.
+                  </p>
+                )}
 
                 <div className="card">
-                  <h2>Latest track updates</h2>
+                  <h2>Track conditions, last 24 hours</h2>
                   {conditions.data ? (
                     <>
                       <ConditionsSummary conditions={conditions.data.conditions} />
                       {conditions.data.reports.length > 0 && (
-                        <Link className="small" to={`/routes/${a.route.id}`} style={{ display: 'inline-block', marginTop: 8 }}>
-                          All {conditions.data.reports.length} reports from the last 7 days →
+                        <Link className="small tap" to={`/routes/${a.route.id}`}>
+                          All {conditions.data.reports.length} reports from the last 7 days <Ico icon={ArrowRight} />
                         </Link>
                       )}
                     </>
                   ) : (
-                    <p className="muted small">Loading…</p>
+                    <SkeletonText lines={3} />
                   )}
                 </div>
 
                 <div className="card">
-                  <h2>Who&apos;s going ({participants.length})</h2>
+                  <h2 className="num">{participants.length} going</h2>
                   <div className="list">
                     {participants.map((p) => (
                       <div key={p.id} className="spread">
@@ -342,7 +378,15 @@ export function ActivityDetail() {
                           {p.isHost && <span className="pill brand">Host</span>}
                         </span>
                         <span className="small muted">
-                          {p.checkedIn ? '✓ Checked in' : p.experience ? p.experience[0].toUpperCase() + p.experience.slice(1) : ''}
+                          {p.checkedIn ? (
+                            <>
+                              <Ico icon={Check} /> Checked in
+                            </>
+                          ) : p.experience ? (
+                            p.experience[0].toUpperCase() + p.experience.slice(1)
+                          ) : (
+                            ''
+                          )}
                         </span>
                       </div>
                     ))}

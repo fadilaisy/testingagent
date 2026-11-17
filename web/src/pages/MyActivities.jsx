@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
@@ -14,10 +15,10 @@ export function MyActivities() {
 
   return (
     <>
-      <div className="spread">
-        <h1 style={{ margin: 0 }}>My activities</h1>
+      <div className="spread page-head">
+        <h1>Your rides, runs and events</h1>
         <Link className="btn primary small" to="/activities/new">
-          + Plan an activity
+          <Plus size={18} aria-hidden="true" /> Plan an activity
         </Link>
       </div>
       <div className="tabs" role="tablist" style={{ margin: '12px 0' }}>

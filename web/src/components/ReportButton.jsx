@@ -1,3 +1,4 @@
+import { Flag } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useSession } from '../session.jsx';
@@ -35,7 +36,7 @@ export function ReportButton({ targetType, targetId }) {
   return (
     <>
       <button type="button" className="btn ghost small" onClick={() => setOpen(true)}>
-        ⚑ Report
+        <Flag size={16} aria-hidden="true" /> Report
       </button>
       {open && (
         <Modal title={`Report this ${targetType}`} onClose={() => setOpen(false)}>

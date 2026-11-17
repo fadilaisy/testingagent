@@ -1,24 +1,24 @@
-import { Bike, Footprints, MapPin, Mountain } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowRight, LocateFixed, MapPin, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { ActivityCard, CommunityCard, ConditionItem, EventCard, RouteCard } from '../components/cards.jsx';
-import { ActivityChips, Empty, Loaded } from '../components/ui.jsx';
+import { ACTIVITY_STYLE, activityIcon } from '../components/icons.jsx';
+import { MapView } from '../components/MapView.jsx';
+import { ActivityChips, Empty, Loaded, Skeleton } from '../components/ui.jsx';
+import { when } from '../format.js';
 import { getPosition, useLoad, useSession } from '../session.jsx';
-
-const QUICK = [
-  { key: 'road_cycling', label: 'Ride', Icon: Bike },
-  { key: 'running', label: 'Run', Icon: Footprints },
-  { key: 'trail_running', label: 'Trail', Icon: Mountain },
-  { key: 'mtb', label: 'MTB', Icon: Bike },
-];
 
 function Section({ title, link, linkLabel = 'See all', children }) {
   return (
     <section className="section">
       <div className="section-head">
         <h2>{title}</h2>
-        {link && <Link to={link}>{linkLabel}</Link>}
+        {link && (
+          <Link to={link}>
+            {linkLabel} <ArrowRight className="ico" size="1em" aria-hidden="true" />
+          </Link>
+        )}
       </div>
       {children}
     </section>
@@ -41,68 +41,73 @@ export function Home() {
     }
   }
 
+  const place = pos ? 'you' : user?.locationName ?? 'Jakarta';
+  const d = state.data;
+  // The map is the product: every pin is a real plan you can open and join.
+  const markers = useMemo(
+    () =>
+      (d?.nearbyActivities ?? []).map((a) => ({
+        lat: a.meeting[0],
+        lng: a.meeting[1],
+        icon: activityIcon(a.activityType),
+        color: ACTIVITY_STYLE[a.activityType]?.color,
+        title: a.title,
+        subtitle: `${when(a.startsAt)} · ${a.participantCount} going`,
+        link: `/activities/${a.id}`,
+      })),
+    [d],
+  );
+
   return (
     <>
-      <div className="hero">
-        <svg className="hero-contours" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <path
-              key={i}
-              d={`M-10,${30 + i * 28} C80,${i * 20} 150,${80 + i * 20} 250,${40 + i * 24} S360,${60 + i * 10} 420,${20 + i * 30}`}
-            />
-          ))}
-        </svg>
-        <div className="hero-body">
-          <div className="hero-place">
+      <div className="home-top">
+        <div className="home-intro">
+          <div className="home-place">
             <MapPin size={16} aria-hidden="true" /> {pos ? 'Near you' : user?.locationName ?? 'Jakarta'}
-          </div>
-          <h1>What do you want to do today{user ? `, ${user.name}` : ''}?</h1>
-          {!user && (
-            <p>
-              Find a route, see who&apos;s going, check the weather and the latest track conditions, then finish somewhere good.{' '}
-              <Link to="/register">Join ROAMR</Link>
-            </p>
-          )}
-          <div className="big-choices" role="group" aria-label="Activity">
-            {QUICK.map(({ key, label, Icon }) => (
-              <button
-                type="button"
-                key={key}
-                className={`big-choice${activity === key ? ' on' : ''}`}
-                aria-pressed={activity === key}
-                onClick={() => setActivity(activity === key ? '' : key)}
-              >
-                <Icon size={28} strokeWidth={2.2} aria-hidden="true" />
-                <span>{label}</span>
+            {!pos && (
+              <button type="button" className="btn ghost small" onClick={locate}>
+                <LocateFixed size={16} aria-hidden="true" /> Use my location
               </button>
-            ))}
+            )}
+          </div>
+          <h1 className="num">
+            {!d ? (
+              <Skeleton width="80%" height="1em" />
+            ) : d.nearbyCount ? (
+              `${d.nearbyCount} ${d.nearbyCount === 1 ? 'ride or run' : 'rides and runs'} planned near ${place}`
+            ) : (
+              `Nothing is planned near ${place} yet`
+            )}
+          </h1>
+          <p className="muted">
+            {user
+              ? 'All within 50 km. Join one, or pick a route and announce your own.'
+              : 'Find a route, see who is going, check the weather and the latest track conditions, then finish somewhere good.'}
+          </p>
+          {locError && <p className="field-error">{locError}</p>}
+          <div className="row home-cta">
+            <Link className="btn primary" to={user ? '/activities/new' : '/register'}>
+              {user && <Plus size={20} aria-hidden="true" />} {user ? 'Plan an activity' : 'Join ROAMR'}
+            </Link>
+            <Link className="btn" to={`/explore${activity ? `?activity=${activity}` : ''}`}>
+              Find a route
+            </Link>
           </div>
         </div>
+        <MapView markers={markers} center={d?.center} label="Map of activities near you" />
       </div>
-      <div style={{ marginTop: 12 }}>
+      <div className="home-filter">
         <ActivityChips value={activity} onChange={setActivity} />
       </div>
 
       <Loaded state={state}>
         {(d) => (
           <>
-            <Section title="Near you" link={`/explore?tab=activities${activity ? `&activity=${activity}` : ''}`}>
-              <div className="spread" style={{ marginBottom: 10 }}>
-                <p className="muted" style={{ margin: 0 }}>
-                  <strong style={{ color: 'var(--text)' }}>{d.nearbyCount}</strong> {d.nearbyCount === 1 ? 'activity' : 'activities'} planned
-                  within 50 km of {pos ? 'you' : user?.locationName ?? 'Jakarta'}
-                </p>
-                {!pos && (
-                  <button type="button" className="btn ghost small" onClick={locate}>
-                    📍 Use my location
-                  </button>
-                )}
-              </div>
-              {locError && <p className="field-error">{locError}</p>}
+            <Section title="Next up near you" link={`/explore?tab=activities${activity ? `&activity=${activity}` : ''}`} linkLabel="All activities">
               {d.nearbyActivities.length ? (
-                <div className="grid-cards">
+                <div className="grid-cards featured">
                   {d.nearbyActivities.map((a) => (
-                    <ActivityCard key={a.id} activity={a} />
+                    <ActivityCard key={a.id} activity={a} featured />
                   ))}
                 </div>
               ) : (
@@ -112,7 +117,7 @@ export function Home() {
               )}
             </Section>
 
-            <Section title="Popular routes" link={`/explore${activity ? `?activity=${activity}` : ''}`}>
+            <Section title="Routes people ride and run most" link={`/explore${activity ? `?activity=${activity}` : ''}`} linkLabel="All routes">
               {d.popularRoutes.length ? (
                 <div className="grid-cards">
                   {d.popularRoutes.map((r) => (
@@ -127,7 +132,7 @@ export function Home() {
             </Section>
 
             <div className="grid-2">
-              <Section title="Upcoming events" link="/explore?tab=events">
+              <Section title="Events in the next 30 days" link="/explore?tab=events" linkLabel="All events">
                 {d.upcomingEvents.length ? (
                   <div className="stack">
                     {d.upcomingEvents.map((e) => (
@@ -138,7 +143,7 @@ export function Home() {
                   <Empty>No events from communities near you in the next 30 days.</Empty>
                 )}
               </Section>
-              <Section title="Track conditions">
+              <Section title="Track reports, last 24 hours">
                 <div className="card">
                   {d.recentConditions.length ? (
                     <div className="list">
@@ -155,7 +160,7 @@ export function Home() {
               </Section>
             </div>
 
-            <Section title="Communities" link="/communities">
+            <Section title="Communities to go out with" link="/communities" linkLabel="All communities">
               <div className="grid-cards">
                 {d.popularCommunities.map((c) => (
                   <CommunityCard key={c.id} community={c} />

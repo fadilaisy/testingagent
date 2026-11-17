@@ -1,3 +1,4 @@
+import { LocateFixed } from 'lucide-react';
 import { useState } from 'react';
 import { getPosition, useSession } from '../session.jsx';
 
@@ -42,8 +43,8 @@ export function LocationPicker({ value, onChange }) {
         {value?.locationName && !selected && <option value="__custom">{value.locationName} (from GPS)</option>}
       </select>
       <div className="row">
-        <button type="button" className="btn small" onClick={useGps} disabled={busy}>
-          📍 {busy ? 'Locating…' : 'Use my current location'}
+        <button type="button" className="btn small" onClick={useGps} disabled={busy} aria-busy={busy}>
+          <LocateFixed size={18} aria-hidden="true" /> {busy ? 'Locating…' : 'Use my current location'}
         </button>
         {value?.lat != null && <span className="tiny muted">Saved as an approximate area, never shown to others.</span>}
       </div>
