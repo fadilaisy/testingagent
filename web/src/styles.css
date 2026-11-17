@@ -447,23 +447,100 @@ a:has(> .avatar):active { box-shadow: 0 0 0 3px var(--border-strong); }
 /* The paper-plane glyph leans right; nudge it left so it looks centred. */
 .chat-input .btn svg { transform: translateX(-1px); }
 
-/* Home opens on the product itself: the count of real plans nearby and the
-   map they are on, with the one main action next to it. */
-.home-top { display: grid; gap: var(--space-4); }
-.home-top .map { height: 260px; }
+/* Home is a dashboard: you | the feed | around you. The feed column is the
+   widest and comes first on phones. Side blocks and feed cards share the
+   card radius rules, so nested corners stay concentric. */
 .home-place { display: flex; align-items: center; gap: 6px; min-height: 44px; margin-bottom: var(--space-1); font-size: 0.875rem; font-weight: 600; color: var(--muted); }
 .home-place .btn { margin-left: auto; }
-.home-intro h1 { font-size: 1.9rem; line-height: 1.1; margin-bottom: var(--space-2); }
-.home-intro p { max-width: 34rem; }
-.home-cta { margin-top: var(--space-4); gap: var(--space-2); }
-.home-cta .btn.primary { flex: 1 1 auto; }
-.home-filter { margin-top: var(--space-5); }
-@media (min-width: 1024px) {
-  .home-top { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--space-6); align-items: center; }
-  .home-top .map { height: 400px; }
-  .home-intro h1 { font-size: 2.75rem; }
-  .home-cta .btn.primary { flex: none; }
+.dash { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'feed' 'me' 'side'; }
+.dash-me { grid-area: me; }
+.dash-feed { grid-area: feed; min-width: 0; }
+.dash-side { grid-area: side; display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.dash .section:first-of-type { margin-top: var(--space-5); }
+.feed-intro h1 { font-size: 1.75rem; line-height: 1.12; margin-bottom: var(--space-3); }
+.feed-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.feed-tools > :first-child { flex: 1 1 100%; min-width: 0; }
+.feed-tools .btn.primary { flex: 1 1 auto; }
+/* On wide screens the sidebar's Create button is the way in. */
+.feed { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.feed-card { position: relative; --pad: 20px; }
+@media (max-width: 479px) {
+  .feed-card { --pad: 16px; }
+  .feed-stats { gap: var(--space-4); }
+  .feed-stats div + div { padding-left: var(--space-4); }
+  .feed-stats dd { font-size: 1.1rem; }
 }
+.feed-head { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-3); }
+.feed-head .avatars .avatar { width: 40px; height: 40px; }
+.avatar.more { background: var(--surface-2); color: var(--muted); font-size: 0.75rem; }
+.feed-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.015em; margin: 0 0 2px; }
+.feed-title a { color: var(--text); }
+/* The title link covers the card, so the whole card opens the plan without nesting links. */
+.stretch::after { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
+.feed-card { transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+@media (hover: hover) {
+  .feed-card:has(.stretch:hover) { transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); box-shadow: 0 10px 28px rgb(17 32 26 / 0.08); }
+  .feed-title a:hover { text-decoration: none; }
+}
+.feed-card:has(.stretch:active) { transform: translateY(0) scale(0.995); }
+.feed-card:has(.stretch:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+.feed-card .stretch:focus-visible { outline: none; }
+.feed-stats { display: flex; gap: var(--space-5); margin: var(--space-4) 0; }
+.feed-stats div { min-width: 0; }
+.feed-stats div + div { padding-left: var(--space-5); border-left: 1px solid var(--border); }
+.feed-stats dt { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.feed-stats dd { margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+.route-line { display: block; width: 100%; height: auto; aspect-ratio: 600 / 220; border-radius: var(--inner); }
+.route-line { background-image: repeating-linear-gradient(0deg, transparent 0 31px, color-mix(in srgb, var(--text) 5%, transparent) 31px 32px), repeating-linear-gradient(90deg, transparent 0 31px, color-mix(in srgb, var(--text) 5%, transparent) 31px 32px); background-color: var(--map-bg); }
+.route-line-halo { fill: none; stroke: var(--surface); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.route-line-path { fill: none; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
+.route-line-start { fill: var(--good); stroke: var(--surface); stroke-width: 3; }
+.route-line-end { fill: var(--text); stroke: var(--surface); stroke-width: 3; }
+.feed-foot { margin-top: var(--space-3); }
+.feed-foot .pill { position: relative; z-index: 2; }
+
+.me-card { --pad: 20px; }
+.me-id { display: flex; align-items: center; gap: var(--space-3); }
+.me-id .avatar.lg { width: 64px; height: 64px; font-size: 1.5rem; }
+.me-id h2 { margin: 0; }
+.me-totals { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; margin: var(--space-4) 0 0; padding: var(--space-3) 0; border-block: 1px solid var(--border); }
+.me-totals div + div { border-left: 1px solid var(--border); padding-left: 10px; }
+.me-totals div { min-width: 0; }
+.me-totals dt { overflow: hidden; text-overflow: ellipsis; font-size: 0.6875rem; font-weight: 600; color: var(--muted); }
+.me-totals dd { margin: 0; font-size: 1.15rem; font-weight: 800; white-space: nowrap; }
+.me-week { padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.me-week h3 { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin: 0 0 2px; }
+.me-week p { margin: 0; }
+.me-week strong { font-size: 1.15rem; font-weight: 800; }
+.me-row { display: flex; flex-direction: column; gap: 1px; padding: var(--space-3) 0; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 400; min-width: 0; }
+.me-row-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+@media (hover: hover) { .me-row:hover { text-decoration: none; } .me-row:hover .strong { color: var(--link); } }
+.me-more { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-top: var(--space-1); font-size: 0.875rem; }
+
+.side-block { --pad: 16px; }
+.side-block-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.side-block-head h2 { font-size: 1rem; margin: 0; }
+.side-block-head a { font-size: 0.875rem; display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; }
+.side-block p { margin: 0; }
+.side-block .condition { font-size: 0.875rem; }
+.side-row { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; color: var(--text); font-weight: 400; }
+.side-row .card-main { display: flex; flex-direction: column; }
+.side-row .date-tile { width: 48px; height: 48px; }
+@media (hover: hover) { .side-row:hover { text-decoration: none; } .side-row:hover .strong { color: var(--link); } }
+.side-map { --pad: 0px; overflow: hidden; }
+.side-map .map { height: 240px; border-radius: 0; border: 0; }
+
+@media (min-width: 1024px) {
+  .dash { grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: 'feed me' 'feed side'; align-items: start; column-gap: var(--space-5); row-gap: var(--space-4); }
+  .feed-tools .btn.primary { display: none; }
+  .feed-intro h1 { font-size: 2.1rem; }
+}
+@media (min-width: 1360px) {
+  .dash { grid-template-columns: 264px minmax(0, 1fr) 288px; grid-template-areas: 'me feed side'; column-gap: 20px; }
+  .dash-me { position: sticky; top: 96px; }
+}
+@media (prefers-reduced-motion: reduce) { .feed-card { transition: none; } .feed-card:has(.stretch:hover) { transform: none; } }
 
 .empty { text-align: center; text-wrap: balance; padding: 32px 16px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: var(--inner, var(--radius)); }
 .empty h1 { color: var(--text); }
