@@ -3,3 +3,5 @@ web/dist/
 server/data/*.db
 server/data/*.db-*
 .env
+.env.*
+!.env.example
