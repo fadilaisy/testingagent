@@ -48,7 +48,7 @@ NODE_ENV=production DATABASE_FILE=/var/lib/roamr/roamr.db npm start
 
 In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. The alpha runs the web app on Vercel and the server on Fly.io (`web/vercel.json`, `fly.toml`, `Dockerfile`); see [docs/DEPLOY.md](docs/DEPLOY.md) for the guide and `.env.example` for a template.
 
-Settings are environment variables; [`.env.example`](.env.example) lists every one the server reads. To use them locally, copy it to `.env` in the repo root and uncomment what you need: `npm run dev`, `npm start` and `npm run seed` load `.env` when it exists, and variables set in the shell take precedence. `.env` is git-ignored. The web app reads no environment variables.
+Settings are environment variables; [`.env.example`](.env.example) lists every one the server reads. To use them locally, copy it to `.env` in the repo root and fill in what you need (empty means default or off): `npm run dev`, `npm start` and `npm run seed` load `.env` when it exists, and variables set in the shell take precedence. `.env` is git-ignored. The web app reads no environment variables.
 
 | Variable | Default | Purpose |
 |---|---|---|

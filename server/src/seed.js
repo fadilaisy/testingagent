@@ -442,7 +442,7 @@ export function seedIfEmpty(db) {
 // `npm run seed` wipes the local database and reseeds it.
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const file = process.env.DATABASE_FILE ?? path.join(here, '..', 'data', 'roamr.db');
+  const file = process.env.DATABASE_FILE || path.join(here, '..', 'data', 'roamr.db');
   if (process.argv.includes('--reset')) {
     for (const suffix of ['', '-wal', '-shm']) fs.rmSync(file + suffix, { force: true });
   }
