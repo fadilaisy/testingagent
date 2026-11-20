@@ -48,8 +48,11 @@ NODE_ENV=production DATABASE_FILE=/var/lib/roamr/roamr.db npm start
 
 In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. The alpha runs the web app on Vercel and the server on Fly.io (`web/vercel.json`, `fly.toml`, `Dockerfile`); see [docs/DEPLOY.md](docs/DEPLOY.md) for the guide and `.env.example` for a template.
 
+Settings are environment variables; [`.env.example`](.env.example) lists every one the server reads. To use them locally, copy it to `.env` in the repo root and fill in what you need (empty means default or off): `npm run dev`, `npm start` and `npm run seed` load `.env` when it exists, and variables set in the shell take precedence. `.env` is git-ignored. The web app reads no environment variables.
+
 | Variable | Default | Purpose |
 |---|---|---|
+| `NODE_ENV` | unset | `production` turns on Secure cookies, requires `DATABASE_FILE` and turns off demo data and demo mode |
 | `PORT` | `3001` | HTTP port |
 | `DATABASE_FILE` | `server/data/roamr.db`; **required** in production | SQLite file |
 | `DEMO_MODE` | on in development, off in production | Relaxes the check-in time window and adds a "check in at the meeting point" button |
@@ -57,6 +60,9 @@ In production the server also serves `web/dist`. Run it behind HTTPS: session co
 | `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer (`1` = one hop) |
 | `ADMIN_EMAILS` | unset | Comma-separated emails that are admins. Unset: the first account registered becomes the admin |
 | `SIGNUP_CODE` | unset | Invite code required to register (closed alpha). Link: `/register?invite=<code>` |
+| `PUBLIC_URL` | unset | Site address, e.g. `https://roamr.id`. Used in Midtrans return links and reset emails; required in production when either is configured |
+| `MIDTRANS_SERVER_KEY` | unset | Turns on online payment for paid events (Midtrans Snap). Unset: manual confirmation only. See docs/DEPLOY.md |
+| `MIDTRANS_PRODUCTION` | `0` | `1` uses the Midtrans production environment (needs the production key, not `SB-...`) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` | unset | All three turn on "Continue with Google". See docs/DEPLOY.md |
 | `RESEND_API_KEY`, `EMAIL_FROM` | unset | Send password-reset emails through Resend. Unset: the link is only logged |
 | `INSECURE_COOKIES` | unset | `1` allows non-Secure cookies in production (local testing only) |

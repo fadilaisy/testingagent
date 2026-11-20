@@ -15,7 +15,7 @@ export function loadConfig(env = process.env) {
     throw new Error('DATABASE_FILE must be set in production (point it at a persistent volume, e.g. /data/roamr.db)');
   }
 
-  const port = Number(env.PORT ?? 3001);
+  const port = Number(env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`PORT is not a valid port: ${env.PORT}`);
 
   const midtransKey = env.MIDTRANS_SERVER_KEY?.trim() || null;
@@ -60,7 +60,7 @@ export function loadConfig(env = process.env) {
   return {
     production,
     port,
-    databaseFile: env.DATABASE_FILE ?? DEFAULT_DATABASE_FILE,
+    databaseFile: env.DATABASE_FILE || DEFAULT_DATABASE_FILE,
     // Demo data and demo mode are for local development and demos only.
     // In production both stay off unless explicitly turned on.
     seed: flag('SEED', !production),
