@@ -1,7 +1,7 @@
-import { Activity, Bell, Compass, House, Mountain, Plus, User, Users } from 'lucide-react';
+import { Activity, Bell, Compass, House, Mountain, Plus, User, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Avatar, ErrorBox, NotFound, RequireAuth, Spinner } from './components/ui.jsx';
+import { Avatar, ErrorBox, NotFound, RequireAuth, SkeletonCards } from './components/ui.jsx';
 import { ForgotPassword, Login, Onboarding, Register, ResetPassword } from './pages/Account.jsx';
 import { ActivityDetail } from './pages/ActivityDetail.jsx';
 import { ActivityNew } from './pages/ActivityNew.jsx';
@@ -39,16 +39,38 @@ function TopBar() {
           if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`);
         }}
       >
-        <input type="search" aria-label="Search routes, communities, events and people" placeholder="Search “Puncak”" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="sr-only" htmlFor="top-search">
+          Search routes, events, communities, people and places
+        </label>
+        <input id="top-search" type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" placeholder="Search routes, events, people" value={q} onChange={(e) => setQ(e.target.value)} />
+        {q && (
+          <button
+            type="button"
+            className="search-clear"
+            aria-label="Clear search"
+            onClick={() => {
+              setQ('');
+              if (location.pathname === '/search') navigate('/explore');
+              document.getElementById('top-search')?.focus();
+            }}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        )}
       </form>
       <Link to="/create" className="icon-btn create-btn" aria-label="Create">
-        <Plus size={22} strokeWidth={2.4} />
+        <Plus size={22} strokeWidth={2} />
       </Link>
       {user ? (
         <>
           <Link to="/notifications" className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
             <Bell size={20} />
-            {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
+            {/* Keyed by the count so the badge bumps each time it changes. */}
+            {unread > 0 && (
+              <span className="badge" key={unread}>
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
           </Link>
           <Link to={`/users/${user.id}`} aria-label="Your profile">
             <Avatar name={user.name} />
@@ -127,7 +149,8 @@ function Toast() {
   const { toast, setToast } = useSession();
   useEffect(() => {
     if (!toast) return undefined;
-    const t = setTimeout(() => setToast(null), toast.urgent ? 15000 : 6000);
+    // Long enough to read twice; urgent ones stay until dismissed or 20s.
+    const t = setTimeout(() => setToast(null), toast.urgent ? 20000 : 8000);
     return () => clearTimeout(t);
   }, [toast, setToast]);
   if (!toast) return null;
@@ -139,8 +162,8 @@ function Toast() {
           View
         </Link>
       )}
-      <button type="button" className="btn ghost small" style={{ color: 'inherit' }} onClick={() => setToast(null)} aria-label="Dismiss">
-        ✕
+      <button type="button" className="toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+        <X size={18} aria-hidden="true" />
       </button>
     </div>
   );
@@ -193,7 +216,9 @@ export function App() {
       <div className="shell">
         <div className="content">
           <TopBar />
-          <Spinner />
+          <main>
+            <SkeletonCards count={6} />
+          </main>
         </div>
       </div>
     );

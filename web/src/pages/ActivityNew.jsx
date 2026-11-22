@@ -1,9 +1,10 @@
+import { MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { MapView } from '../components/MapView.jsx';
 import { ErrorBox, Field, Loaded } from '../components/ui.jsx';
-import { ACTIVITY_EMOJI, duration, km, toLocalInput } from '../format.js';
+import { duration, km, toLocalInput } from '../format.js';
 import { useLoad } from '../session.jsx';
 
 function nextMorning() {
@@ -39,7 +40,7 @@ export function ActivityNew() {
   const markers = useMemo(() => {
     if (!r) return [];
     const m = meeting ?? { lat: r.start[0], lng: r.start[1] };
-    return [{ ...m, emoji: '📍', title: 'Meeting point' }];
+    return [{ ...m, icon: MapPin, color: '#c2410c', title: 'Meeting point' }];
   }, [r, meeting]);
 
   async function submit(e) {
@@ -72,7 +73,7 @@ export function ActivityNew() {
             <div className="spread card tight">
               <div>
                 <strong>
-                  {ACTIVITY_EMOJI[r.activityType]} {r.name}
+                  {r.name}
                 </strong>
                 <div className="small muted">
                   {km(r.distanceM)} · +{r.elevationGain ?? 0} m · ~{duration(r.estDurationS)}
@@ -84,13 +85,13 @@ export function ActivityNew() {
             </div>
           ) : (
             <div className="stack" style={{ gap: 8 }}>
-              <input type="search" placeholder="Search routes" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" placeholder="Search routes" value={search} onChange={(e) => setSearch(e.target.value)} />
               <Loaded state={routes}>
                 {(d) => (
                   <select required value={routeId} onChange={(e) => setRouteId(e.target.value)} size={Math.min(8, Math.max(2, d.routes.length))}>
                     {d.routes.map((x) => (
                       <option key={x.id} value={x.id}>
-                        {ACTIVITY_EMOJI[x.activityType]} {x.name} · {km(x.distanceM)}
+                        {x.name} · {km(x.distanceM)}
                       </option>
                     ))}
                   </select>
@@ -122,7 +123,7 @@ export function ActivityNew() {
                 <input type="datetime-local" required value={form.startsAt} onChange={update('startsAt')} />
               </Field>
               <Field label="Participant limit" hint="optional">
-                <input type="number" min="2" max="500" value={form.participantLimit} onChange={update('participantLimit')} placeholder="No limit" />
+                <input type="number" inputMode="numeric" min="2" max="500" value={form.participantLimit} onChange={update('participantLimit')} placeholder="No limit" />
               </Field>
               <Field label="Pace" hint="optional">
                 <input type="text" maxLength={40} value={form.pace} onChange={update('pace')} placeholder="25–28 km/h" />
@@ -140,7 +141,7 @@ export function ActivityNew() {
           </>
         )}
         {error && !error.field && <ErrorBox error={error} />}
-        <button className="btn primary" disabled={busy || !r}>
+        <button className="btn primary" disabled={busy || !r} aria-busy={busy}>
           {busy ? 'Publishing…' : 'Publish activity'}
         </button>
       </form>

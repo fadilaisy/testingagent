@@ -1,11 +1,11 @@
+import { Megaphone, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../api.js';
-import { SEVERITY_DOT, ago, conditionLabel } from '../format.js';
+import { ago, conditionLabel } from '../format.js';
 import { useSession } from '../session.jsx';
 import { ConditionItem } from './cards.jsx';
+import { CONDITION_ICON, Ico, SeverityDot } from './icons.jsx';
 import { ErrorBox, Field, Modal } from './ui.jsx';
-
-const CATEGORY_EMOJI = { road: '🚧', traffic: '🚗', weather: '🌧', trail: '🥾', crowd: '👥' };
 
 // Current-conditions summary: the latest report per category in the last 24h.
 export function ConditionsSummary({ conditions }) {
@@ -15,7 +15,7 @@ export function ConditionsSummary({ conditions }) {
     <div className="stack">
       {conditions.warnings.map((w) => (
         <div key={w.category} className="alert danger">
-          ⚠️ {w.message}
+          <Ico icon={TriangleAlert} /> {w.message}
         </div>
       ))}
       {latest.length === 0 ? (
@@ -23,7 +23,7 @@ export function ConditionsSummary({ conditions }) {
           No reports in the last 24 hours. Been here recently? Share what it&apos;s like.
         </p>
       ) : (
-        <div className="stack" style={{ gap: 6 }}>
+        <div className="stack tight">
           {Object.keys(meta?.conditionCategories ?? {})
             .filter((c) => conditions.latest[c])
             .map((c) => {
@@ -31,10 +31,10 @@ export function ConditionsSummary({ conditions }) {
               return (
                 <div key={c} className="spread">
                   <span>
-                    {SEVERITY_DOT[r.severity]} {r.categoryLabel}: <strong>{conditionLabel(r.value)}</strong>
-                    {r.km != null && <span className="muted small"> · KM {r.km}</span>}
+                    <SeverityDot severity={r.severity} /> {r.categoryLabel}: <strong>{conditionLabel(r.value)}</strong>
+                    {r.km != null && <span className="muted small num"> · KM {r.km}</span>}
                   </span>
-                  <span className="tiny muted">{ago(r.createdAt)}</span>
+                  <span className="tiny muted num">{ago(r.createdAt)}</span>
                 </div>
               );
             })}
@@ -63,7 +63,7 @@ export function ReportList({ reports, limit = 8 }) {
 }
 
 // "Report Track Condition" quick action (PRD §15-16, Flow C).
-export function ReportConditionButton({ routeId, activityId, maxKm, onReported, label = '📣 Report condition' }) {
+export function ReportConditionButton({ routeId, activityId, maxKm, onReported, label = 'Report condition' }) {
   const { meta } = useSession();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState('road');
@@ -104,7 +104,7 @@ export function ReportConditionButton({ routeId, activityId, maxKm, onReported, 
   return (
     <>
       <button type="button" className="btn" onClick={() => setOpen(true)}>
-        {label}
+        <Ico icon={Megaphone} /> {label}
       </button>
       {open && (
         <Modal title="Report track condition" onClose={() => setOpen(false)}>
@@ -120,27 +120,27 @@ export function ReportConditionButton({ routeId, activityId, maxKm, onReported, 
                     setValue('');
                   }}
                 >
-                  {CATEGORY_EMOJI[key]} {c.label}
+                  <Ico icon={CONDITION_ICON[key]} /> {c.label}
                 </button>
               ))}
             </div>
             <div className="chip-grid" role="group" aria-label="Condition">
               {Object.entries(categories[category].values).map(([v, severity]) => (
                 <button type="button" key={v} className={`chip${value === v ? ' on' : ''}`} onClick={() => setValue(v)}>
-                  {SEVERITY_DOT[severity]} {conditionLabel(v)}
+                  <SeverityDot severity={severity} /> {conditionLabel(v)}
                 </button>
               ))}
             </div>
             <div className="form-row">
               <Field label="Where (KM)" hint="optional">
-                <input type="number" min="0" max={maxKm} step="0.1" value={kmValue} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 18" />
+                <input type="number" inputMode="decimal" min="0" max={maxKm} step="0.1" value={kmValue} onChange={(e) => setKm(e.target.value)} placeholder="e.g. 18" />
               </Field>
             </div>
             <Field label="Details" hint="optional">
               <input type="text" maxLength={280} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="One lane closed near the bridge" />
             </Field>
             <ErrorBox error={error} />
-            <button className="btn primary" disabled={busy}>
+            <button className="btn primary" disabled={busy} aria-busy={busy}>
               {busy ? 'Sending…' : 'Share with everyone'}
             </button>
             <p className="tiny muted" style={{ margin: 0 }}>

@@ -101,7 +101,7 @@ export function Login() {
           <input type="password" autoComplete="current-password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         </Field>
         <ErrorBox error={error} />
-        <button className="btn primary" disabled={busy}>
+        <button className="btn primary" disabled={busy} aria-busy={busy}>
           {busy ? 'Logging in…' : 'Log in'}
         </button>
         <div className="spread small">
@@ -166,7 +166,7 @@ export function Register() {
           </Field>
         )}
         {error && !error.field && <ErrorBox error={error} />}
-        <button className="btn primary" disabled={busy}>
+        <button className="btn primary" disabled={busy} aria-busy={busy}>
           {busy ? 'Creating account…' : 'Create account'}
         </button>
         <p className="small" style={{ margin: 0 }}>
@@ -297,10 +297,10 @@ export function Onboarding() {
         </div>
         <ErrorBox error={error} />
         <div className="row">
-          <button type="button" className="btn primary" disabled={busy || !activities.length} onClick={() => save(false)}>
+          <button type="button" className="btn primary" disabled={busy || !activities.length} aria-busy={busy} onClick={() => save(false)}>
             Continue
           </button>
-          <button type="button" className="btn ghost" disabled={busy} onClick={() => save(true)}>
+          <button type="button" className="btn ghost" disabled={busy} aria-busy={busy} onClick={() => save(true)}>
             Skip for now
           </button>
         </div>

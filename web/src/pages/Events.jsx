@@ -1,3 +1,4 @@
+import { BadgeCheck, Check, MapPin, Route as RouteIcon, Timer, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
@@ -7,7 +8,8 @@ import { MapView } from '../components/MapView.jsx';
 import { ReportButton } from '../components/ReportButton.jsx';
 import { ActivityPill, Avatar, DifficultyPill, Empty, ErrorBox, Field, Loaded, SignInPrompt, Spinner } from '../components/ui.jsx';
 import { WeatherPanel } from '../components/WeatherPanel.jsx';
-import { ACTIVITY_EMOJI, km, longDate, rupiah, time, toLocalInput } from '../format.js';
+import { Ico } from '../components/icons.jsx';
+import { km, longDate, rupiah, time, toLocalInput } from '../format.js';
 import { useLoad, useSession } from '../session.jsx';
 import { PremiumCard } from './Communities.jsx';
 
@@ -24,7 +26,7 @@ export function EventDetail() {
   const markers = useMemo(() => {
     if (!state.data) return [];
     const e = state.data.event;
-    return [{ lat: e.location[0], lng: e.location[1], emoji: '📍', title: 'Meeting point', subtitle: e.meetingPoint }];
+    return [{ lat: e.location[0], lng: e.location[1], icon: MapPin, color: '#c2410c', title: 'Meeting point', subtitle: e.meetingPoint }];
   }, [state.data]);
 
   async function act(path) {
@@ -75,13 +77,18 @@ export function EventDetail() {
                   <DifficultyPill value={e.difficulty} />
                 </div>
                 <h1>{e.title}</h1>
-                <p className="strong" style={{ color: 'var(--brand)', margin: 0 }}>
+                <p className="lede num">
                   {longDate(e.startsAt)}
                   {e.endsAt ? ` – ${time(e.endsAt)}` : ''}
                 </p>
                 <p className="muted small" style={{ margin: 0 }}>
                   Organized by <Link to={`/communities/${e.community.id}`}>{e.community.name}</Link>
-                  {e.community.verifiedOrganizer && <span className="pill brand" style={{ marginLeft: 6 }}>✓ Verified organizer</span>}
+                  {e.community.verifiedOrganizer && (
+                    <>
+                      {' '}
+                      <Ico icon={BadgeCheck} aria-hidden={undefined} aria-label="Verified organizer" className="ico verified" />
+                    </>
+                  )}
                 </p>
               </div>
               <ReportButton targetType="event" targetId={e.id} />
@@ -90,19 +97,22 @@ export function EventDetail() {
             <div className="grid-2" style={{ marginTop: 16 }}>
               <div className="stack">
                 <div className="card stack">
-                  <div>
-                    <div className="small muted">Meeting point</div>
-                    <div className="strong">📍 {e.meetingPoint}</div>
-                  </div>
-                  <div className="row">
+                  <div className="facts num">
+                    <div className="strong">
+                      <Ico icon={MapPin} aria-hidden={undefined} aria-label="Meeting point" /> {e.meetingPoint}
+                    </div>
                     {route && (
                       <span>
-                        🗺 <Link to={`/routes/${route.id}`}>{route.name}</Link> · {km(route.distanceM)}
+                        <Ico icon={RouteIcon} aria-hidden={undefined} aria-label="Route" /> <Link to={`/routes/${route.id}`}>{route.name}</Link> · {km(route.distanceM)}
                       </span>
                     )}
-                    {e.pace && <span>⏱ {e.pace}</span>}
+                    {e.pace && (
+                      <span>
+                        <Ico icon={Timer} aria-hidden={undefined} aria-label="Pace" /> {e.pace}
+                      </span>
+                    )}
                     <span>
-                      🎟 {e.participantCount}
+                      <Ico icon={Users} /> {e.participantCount}
                       {e.maxParticipants ? ` / ${e.maxParticipants}` : ''} registered
                     </span>
                   </div>
@@ -129,7 +139,9 @@ export function EventDetail() {
                   )}
                   {e.kind !== 'paid' && user && e.registered && (
                     <div className="spread">
-                      <span className="pill brand">✓ You&apos;re registered</span>
+                      <span className="pill brand pop">
+                        <Ico icon={Check} /> You&apos;re registered
+                      </span>
                       {!past && (
                         <button type="button" className="btn small" onClick={() => act('/unregister')}>
                           Cancel registration
@@ -213,7 +225,7 @@ export function EventNew() {
   const community = choices.find((c) => String(c.id) === String(communityId));
   const r = route.data?.route;
   const location = pin ?? (r ? { lat: r.start[0], lng: r.start[1] } : community?.location ? { lat: community.location[0], lng: community.location[1] } : null);
-  const markers = useMemo(() => (location ? [{ ...location, emoji: '📍', title: 'Meeting point' }] : []), [location?.lat, location?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  const markers = useMemo(() => (location ? [{ ...location, icon: MapPin, color: '#c2410c', title: 'Meeting point' }] : []), [location?.lat, location?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e) {
     e.preventDefault();
@@ -252,10 +264,10 @@ export function EventNew() {
   const kindTabs = (
     <div className="tabs" role="group" aria-label="Event type">
       <button type="button" className={kind === 'community' ? 'on' : ''} aria-pressed={kind === 'community'} onClick={() => setKind('community')}>
-        🎟 Community event · free
+        Community event · free
       </button>
       <button type="button" className={kind === 'paid' ? 'on' : ''} aria-pressed={kind === 'paid'} onClick={() => setKind('paid')}>
-        💳 Paid event · organizers
+        Paid event · organizers
       </button>
     </div>
   );
@@ -314,7 +326,7 @@ export function EventNew() {
             <option value="">No route</option>
             {(routes.data?.routes ?? []).map((x) => (
               <option key={x.id} value={x.id}>
-                {ACTIVITY_EMOJI[x.activityType]} {x.name} · {km(x.distanceM)}
+                {x.name} · {km(x.distanceM)}
               </option>
             ))}
           </select>
@@ -339,7 +351,7 @@ export function EventNew() {
         </div>
         <div className="form-row">
           <Field label="Max participants" hint="optional">
-            <input type="number" min="2" value={form.maxParticipants} onChange={update('maxParticipants')} />
+            <input type="number" inputMode="numeric" min="2" value={form.maxParticipants} onChange={update('maxParticipants')} />
           </Field>
           <Field label="Difficulty">
             <select value={form.difficulty} onChange={update('difficulty')}>
@@ -414,7 +426,7 @@ export function EventNew() {
           </select>
         </Field>
         {error && !error.field && <ErrorBox error={error} />}
-        <button className="btn primary" disabled={busy}>
+        <button className="btn primary" disabled={busy} aria-busy={busy}>
           {busy ? 'Publishing…' : kind === 'paid' ? 'Publish paid event' : 'Publish event'}
         </button>
       </form>

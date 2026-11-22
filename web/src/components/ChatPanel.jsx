@@ -1,8 +1,11 @@
+import { MapPin, Megaphone, Send, Siren } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { time } from '../format.js';
 import { getPosition, useLoad, useSession } from '../session.jsx';
 import { ReportConditionButton } from './Conditions.jsx';
+import { Ico } from './icons.jsx';
+import { SkeletonText } from './ui.jsx';
 
 function osmLink({ lat, lng }) {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
@@ -14,18 +17,24 @@ function Message({ m, mine }) {
     <div className={`msg ${m.kind}${mine ? ' mine' : ''}`}>
       {!mine && <div className="who">{m.user?.name ?? 'Someone'}</div>}
       <div>
-        {m.kind === 'condition' && '📣 '}
-        {m.kind === 'sos' && '🆘 '}
+        {m.kind === 'condition' && (
+          <>
+            <Ico icon={Megaphone} />{' '}
+          </>
+        )}
+        {m.kind === 'sos' && (
+          <>
+            <Ico icon={Siren} />{' '}
+          </>
+        )}
         {m.body}
       </div>
       {m.data?.lat != null && (
-        <a className="small" href={osmLink(m.data)} target="_blank" rel="noreferrer">
-          📍 {m.data.lat.toFixed(5)}, {m.data.lng.toFixed(5)}
+        <a className="small mono" href={osmLink(m.data)} target="_blank" rel="noreferrer">
+          <Ico icon={MapPin} /> {m.data.lat.toFixed(5)}, {m.data.lng.toFixed(5)}
         </a>
       )}
-      <div className="tiny muted" style={{ textAlign: 'right' }}>
-        {time(m.createdAt)}
-      </div>
+      <div className="tiny msg-time num">{time(m.createdAt)}</div>
     </div>
   );
 }
@@ -96,7 +105,7 @@ export function ChatPanel({ activityId, routeId, maxKm, disabled, onReported }) 
   return (
     <div className="chat">
       <div className="chat-log" ref={log} aria-live="polite">
-        {state.loading && <p className="muted small">Loading messages…</p>}
+        {state.loading && !state.data && <SkeletonText lines={4} />}
         {state.error && <p className="muted small">{state.error.message}</p>}
         {state.data?.messages.map((m) => (
           <Message key={m.id} m={m} mine={m.user?.id === user?.id} />
@@ -105,19 +114,19 @@ export function ChatPanel({ activityId, routeId, maxKm, disabled, onReported }) 
       {error && <div className="field-error">{error}</div>}
       {!disabled && (
         <>
-          <div className="row" style={{ paddingTop: 8 }}>
+          <div className="row chat-actions">
             <ReportConditionButton routeId={routeId} activityId={activityId} maxKm={maxKm} onReported={onReported} />
             <button type="button" className="btn" onClick={shareLocation}>
-              📍 Share location
+              <Ico icon={MapPin} /> Share location
             </button>
           </div>
           <form className="chat-input" onSubmit={send}>
             <label className="sr-only" htmlFor="chat-text">
               Message
             </label>
-            <input id="chat-text" type="text" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="Message the group" autoComplete="off" />
-            <button className="btn primary" disabled={busy || !text.trim()}>
-              Send
+            <input id="chat-text" type="text" enterKeyHint="send" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="Message the group" autoComplete="off" />
+            <button className="btn primary" disabled={busy || !text.trim()} aria-busy={busy} aria-label="Send">
+              <Send size={20} aria-hidden="true" />
             </button>
           </form>
         </>
