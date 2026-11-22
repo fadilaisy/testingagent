@@ -81,3 +81,13 @@ export function isValidLatLng(lat, lng) {
     Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
   );
 }
+
+// A route line cut down to at most maxPoints [lat, lng] pairs, start and end
+// kept, for small previews (feed cards draw it as an SVG, no map tiles).
+export function thumbLine(points, maxPoints = 48) {
+  if (!points?.length) return [];
+  const pick = (p) => [p[0], p[1]];
+  if (points.length <= maxPoints) return points.map(pick);
+  const step = (points.length - 1) / (maxPoints - 1);
+  return Array.from({ length: maxPoints }, (_, i) => pick(points[Math.round(i * step)]));
+}

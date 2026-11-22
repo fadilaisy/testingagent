@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ACTIVITY_KEYS, ACTIVITY_TYPES, CONDITION_CATEGORIES, DIFFICULTIES } from '../activities.js';
 import { HttpError, requireAdmin, requireUser } from '../auth.js';
-import { haversine } from '../geo.js';
+import { haversine, thumbLine } from '../geo.js';
 import { DEFAULT_SETTINGS, NOTIFICATION_TYPES } from '../notify.js';
 import { PLACE_CATEGORIES } from '../places.js';
 import {
@@ -89,6 +89,43 @@ export function miscRouter({ db, hub, config, payments, google, notifier }) {
     });
   });
 
+  // The viewer's own column on Home: totals, the last 7 days, and what is next.
+  function homeMe(u) {
+    const outings = db
+      .prepare(
+        `SELECT a.id, a.title, a.activity_type, a.starts_at, r.distance_m, r.elevation_gain
+         FROM activity_participants p JOIN activity_plans a ON a.id = p.activity_id JOIN routes r ON r.id = a.route_id
+         WHERE p.user_id = ? AND p.checked_in_at IS NOT NULL AND a.status != 'cancelled' ORDER BY a.starts_at DESC`,
+      )
+      .all(u.id);
+    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+    const week = outings.filter((o) => o.starts_at > weekAgo);
+    const next = db
+      .prepare(
+        `${ACTIVITY_SELECT} WHERE a.status = 'open' AND a.starts_at > ?
+           AND EXISTS (SELECT 1 FROM activity_participants p WHERE p.activity_id = a.id AND p.user_id = ? AND p.status = 'joined')
+         ORDER BY a.starts_at LIMIT 1`,
+      )
+      .get(u.id, new Date(Date.now() - 3600 * 1000).toISOString(), u.id);
+    const communities = db.prepare("SELECT COUNT(*) AS n FROM community_members WHERE user_id = ? AND status = 'member'").get(u.id).n;
+    const latest = outings[0];
+    return {
+      id: u.id,
+      name: u.name,
+      locationName: u.location_name,
+      stats: {
+        outings: outings.length,
+        totalDistanceM: outings.reduce((s, o) => s + o.distance_m, 0),
+        communities,
+        weekOutings: week.length,
+        weekDistanceM: week.reduce((s, o) => s + o.distance_m, 0),
+        weekElevationM: week.reduce((s, o) => s + (o.elevation_gain ?? 0), 0),
+      },
+      latest: latest ? { id: latest.id, title: latest.title, activityType: latest.activity_type, date: latest.starts_at, distanceM: latest.distance_m } : null,
+      next: next ? activitySummary(next) : null,
+    };
+  }
+
   router.get('/home', (req, res) => {
     const viewerId = req.user?.id ?? 0;
     const qLat = v.lat(req.query.lat, 'Latitude');
@@ -148,10 +185,44 @@ export function miscRouter({ db, hub, config, payments, google, notifier }) {
       .slice(0, 4)
       .map(communitySummary);
 
+    // Feed cards draw each route as a small line, so they carry a cut-down copy.
+    const lineOf = db.prepare('SELECT geometry FROM routes WHERE id = ?');
+    const withLine = (a) => ({ ...activitySummary(a), routeLine: thumbLine(JSON.parse(lineOf.get(a.route_id)?.geometry ?? '[]')) });
+
+    // Finished together: public outings from the last 30 days that people
+    // checked in to (PRD §26 history, "finish together" in the core loop).
+    // Names are shown only for public profiles; the rest are counted.
+    const finishersOf = db.prepare(
+      `SELECT u.id, u.name, u.privacy FROM activity_participants p JOIN users u ON u.id = p.user_id
+       WHERE p.activity_id = ? AND p.checked_in_at IS NOT NULL AND u.suspended = 0 ORDER BY p.checked_in_at`,
+    );
+    const reportsOf = db.prepare('SELECT COUNT(*) AS n FROM track_reports WHERE activity_id = ?');
+    const finished = db
+      .prepare(
+        `${ACTIVITY_SELECT} WHERE a.status != 'cancelled' AND a.visibility = 'public' AND r.hidden = 0
+           AND a.starts_at < ? AND a.starts_at > ?
+           AND EXISTS (SELECT 1 FROM activity_participants p WHERE p.activity_id = a.id AND p.checked_in_at IS NOT NULL)
+         ORDER BY a.starts_at DESC LIMIT 200`,
+      )
+      .all(viewerId, new Date().toISOString(), new Date(Date.now() - 30 * 864e5).toISOString())
+      .filter((a) => dist(a.meeting_lat, a.meeting_lng) <= 100000 && matches(a.activity_type))
+      .slice(0, 8)
+      .map((a) => {
+        const people = finishersOf.all(a.id);
+        return {
+          ...withLine(a),
+          finishedCount: people.length,
+          finishers: people.filter((u) => u.privacy !== 'private' || u.id === viewerId).map((u) => ({ id: u.id, name: u.name })),
+          reportCount: reportsOf.get(a.id).n,
+        };
+      });
+
     res.json({
       center,
+      me: req.user ? homeMe(req.user) : null,
       nearbyCount: nearby.length,
-      nearbyActivities: nearby.slice(0, 6).map(activitySummary),
+      nearbyActivities: nearby.slice(0, 6).map(withLine),
+      finishedActivities: finished,
       popularRoutes: routes.slice(0, 6).map(routeSummary),
       upcomingEvents: events.slice(0, 4).map(eventSummary),
       recentConditions: conditions,
