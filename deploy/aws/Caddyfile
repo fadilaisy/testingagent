@@ -1,0 +1,12 @@
+# SITE_HOST comes from /opt/roamr/.env, e.g. 3-104-55-12.sslip.io until a
+# domain like roamr.id points at the static IP. Caddy fetches and renews the
+# HTTPS certificate itself. The app serves both the web app and /api.
+{$SITE_HOST} {
+	encode gzip
+	# Vite's hashed bundles never change under the same name.
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
+	# flush_interval -1 keeps live chat (server-sent events) streaming.
+	reverse_proxy app:3001 {
+		flush_interval -1
+	}
+}
