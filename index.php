@@ -33,6 +33,9 @@
 				<li><a href="?module=cari#pos"
 						class="<?php echo (isset($_GET['module']) && $_GET['module'] == 'cari') ? 'selected' : ''; ?>">cari
 						data</a></li>
+				<li><a href="?module=alamat#pos"
+						class="<?php echo (isset($_GET['module']) && strpos($_GET['module'], 'alamat') === 0) ? 'selected' : ''; ?>">alamat
+						rumah</a></li>
 				<?php if (isset($_SESSION['username'])) { ?>
 				<li><a href="?module=profil#pos"
 						class="<?php echo (isset($_GET['module']) && $_GET['module'] == 'profil') ? 'selected' : ''; ?>">profil

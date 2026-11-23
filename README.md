@@ -13,3 +13,10 @@ Site from the 12409011030034-32 folder, with:
 5. Open http://localhost/12409011030034-32/ , register a user, log in, then open "profil saya".
 
 The database `uinj_db`, the `register` table and the `foto` column are created automatically.
+
+## Alamat rumah + GPS (peta OpenStreetMap)
+Menu "alamat rumah" (`konten/alamat.php`, `alamat_form.php`, `alamat_hapus.php`, `alamat_tabel.php`):
+- Simpan nama pemilik, alamat lengkap, latitude, longitude (tabel `alamat` dibuat otomatis)
+- Koordinat diisi lewat tombol GPS ("Gunakan Lokasi Saya"), klik/geser penanda di peta, atau ketik manual
+- Semua rumah tampil sebagai penanda di peta OpenStreetMap (Leaflet), dengan tombol lihat/edit/hapus
+- Butuh internet untuk memuat Leaflet dan peta
