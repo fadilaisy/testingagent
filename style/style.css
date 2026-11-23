@@ -1,0 +1,156 @@
+* {
+    box-sizing: border-box;
+}
+
+/* Default */
+body {
+    font-family: verdana, arial, helvetica, sans-serif;
+    font-size: 12px;
+    margin: 0;
+    padding: 0;
+}
+
+/* pengaturan halaman */
+#container {
+    width: 1000px;
+    font-size: 90%;
+    margin: 0 auto;
+}
+
+/* pengaturan header */
+#header {
+    padding: 10px;
+    border: #0000ff dashed 1px;
+    background-color: #99ccff;
+}
+
+#header h1 {
+    display: block;
+    margin: 0;
+    padding: 10px;
+    color: #003366;
+    font-size: 20px;
+    font-family: 'trebuchet ms', helvetica, arial, sans-serif;
+    text-transform: uppercase;
+}
+
+/* pengaturan side panel */
+#sidebar {
+    border: #0000ff dashed 1px;
+    margin-top: 10px;
+    width: 160px;
+    float: left;
+    background-color: #99ccff;
+    min-height: 160px;
+}
+
+#sidebar h3 {
+    color: #993300;
+    padding-left: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-family: 'trebuchet ms', helvetica, arial, sans-serif;
+}
+
+/* pengaturan menu navigasi */
+ul#navmenu {
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+}
+
+ul#navmenu li {
+    margin-bottom: 5px;
+}
+
+ul#navmenu a {
+    display: block;
+    background-color: #003366;
+    padding: 5px 5px 3px;
+    text-align: left;
+    text-decoration: none;
+    color: #eecc11;
+    cursor: pointer;
+}
+
+ul#navmenu a:hover,
+ul#navmenu a:focus,
+ul#navmenu a:active {
+    background-color: #333;
+    color: #fff;
+}
+
+ul#navmenu a.selected,
+ul#navmenu a.selected:hover,
+ul#navmenu a.selected:focus,
+ul#navmenu a.selected:active {
+    background-color: #386088;
+    color: #fff;
+    text-align: right;
+    cursor: default;
+}
+
+/* pengaturan content */
+#page {
+    border: #0000ff dashed 1px;
+    margin-top: 10px;
+    margin-left: 10px;
+    padding: 10px;
+    width: 825px;
+    float: left;
+    min-height: 160px;
+}
+
+#page h2 {
+    color: #993300;
+    font-family: 'trebuchet ms', helvetica, arial, sans-serif;
+    margin: 0;
+}
+
+img {
+    border: none;
+}
+
+#clear {
+    clear: both;
+}
+
+/* pengaturan footer */
+#footer {
+    border: #0000ff dashed 1px;
+    margin-top: 10px;
+    text-align: center;
+    background-color: #99ccff;
+    padding: 10px;
+}
+
+#footer p {
+    margin: 0;
+}
+
+/* pengaturan tabel jadwal */
+table.jadwal {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    margin-bottom: 15px;
+}
+
+table.jadwal th, table.jadwal td {
+    border: 1px solid #003366;
+    padding: 6px 8px;
+}
+
+table.jadwal th {
+    background-color: #99ccff;
+    color: #003366;
+    text-align: center;
+}
+
+.center {
+    text-align: center;
+}
+
+.right {
+    text-align: right;
+}
