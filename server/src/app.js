@@ -92,7 +92,7 @@ export function createApp({ db, config = {}, weather, places, payments, google, 
       return res.status(err.status).json({ error: err.message, ...err.extra });
     }
     if (err instanceof multer.MulterError) {
-      const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 10 MB)' : err.message;
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large (max 25 MB)' : err.message;
       return res.status(400).json({ error: message });
     }
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body is not valid JSON' });

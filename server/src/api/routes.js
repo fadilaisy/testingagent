@@ -10,7 +10,7 @@ import {
 import { HttpError, requireUser } from '../auth.js';
 import { transaction } from '../db.js';
 import { haversine, trimEnds } from '../geo.js';
-import { GpxError, compactPoints, computeStats, parseGpx, simplify, toGpx } from '../gpx.js';
+import { GpxError, MAX_GPX_BYTES, compactPoints, computeStats, decodeGpx, parseGpx, simplify, toGpx } from '../gpx.js';
 import { PLACE_CATEGORIES } from '../places.js';
 import {
   ACTIVITY_SELECT,
@@ -25,7 +25,7 @@ import { routeWeather } from '../weather.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  limits: { fileSize: MAX_GPX_BYTES, files: 1 },
 });
 
 const PRIVACY_TRIM_OPTIONS = [0, 200, 500];
@@ -35,7 +35,8 @@ const REPORTS_PER_HOUR = 10;
 function readGpx(req) {
   if (!req.file) throw new HttpError(400, 'Choose a .gpx file to upload', { field: 'GPX file' });
   try {
-    return parseGpx(req.file.buffer.toString('utf8'));
+    const text = decodeGpx(req.file.buffer);
+    return { ...parseGpx(text), text };
   } catch (err) {
     if (err instanceof GpxError) throw new HttpError(400, err.message, { field: 'GPX file' });
     throw err;
@@ -134,7 +135,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
   });
 
   router.post('/routes', requireUser, upload.single('gpx'), (req, res) => {
-    const { name: gpxName, points } = readGpx(req);
+    const { name: gpxName, points, text: gpxText } = readGpx(req);
     const b = req.body;
     const activityType = v.oneOf(b.activityType, 'Activity', ACTIVITY_KEYS, { required: true });
     const name = v.text(b.name, 'Route name', { max: 100 }) || gpxName;
@@ -160,7 +161,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
       )
       .get(
         req.user.id, activityType, name, v.text(b.description, 'Description', { max: 2000 }),
-        v.text(b.locationName, 'Location', { max: 80 }) || null, req.file.buffer.toString('utf8'),
+        v.text(b.locationName, 'Location', { max: 80 }) || null, gpxText,
         JSON.stringify(geometry), stats.distanceM, stats.elevationGain, stats.elevationLoss, stats.maxElevation,
         estimateDurationSeconds(activityType, stats.distanceM, stats.elevationGain), difficulty,
         shown.start[0], shown.start[1], shown.end[0], shown.end[1],

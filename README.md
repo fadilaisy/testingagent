@@ -123,6 +123,8 @@ server/            Express 5 API (ES modules)
   src/eventPayments.js  paid-event registration and payment state
   src/api/         routers: account, routes, activities, community (+events), payments, misc
   src/seed.js      demo data
+  src/seed-tracks.json  demo route tracks along real roads and trails
+  scripts/build-seed-tracks.js  rebuilds them from OpenStreetMap routing (run only when demo routes change)
   test/            node:test suites
 web/               React 19 + Vite + React Router + Leaflet
   src/pages/       one file per screen

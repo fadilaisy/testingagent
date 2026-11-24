@@ -129,6 +129,19 @@ describe('routes and GPX', () => {
     assert.equal(r.body.field, 'GPX file');
   });
 
+  test('accepts a UTF-16 GPX file and stores it as readable text', async () => {
+    const gpx = gpxTrack({ points: 20, name: 'Windows Export' });
+    const form = new FormData();
+    form.set('gpx', new Blob([Buffer.from([0xff, 0xfe]), Buffer.from(gpx, 'utf16le')]), 'track.gpx');
+    form.set('activityType', 'running');
+    form.set('visibility', 'unlisted'); // keep it out of the discovery test below
+    const r = await owner.post('/api/routes', form);
+    assert.equal(r.status, 201);
+    assert.equal(r.body.route.name, 'Windows Export');
+    const file = await (await owner.get(`/api/routes/${r.body.route.id}/gpx`, { raw: true })).text();
+    assert.ok(file.includes('<name>Windows Export</name>'));
+  });
+
   test('privacy zone trims the published start but keeps full-route stats', async () => {
     const plain = await createRoute(owner, { name: 'Plain' }, { start: [-6.5, 106.5] });
     const trimmed = await createRoute(owner, { name: 'Trimmed', privacyTrim: 500 }, { start: [-6.5, 106.5] });
