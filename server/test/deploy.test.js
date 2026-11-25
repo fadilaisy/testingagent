@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { promoteAdmins } from '../src/auth.js';
 import { DEFAULT_DATABASE_FILE, loadConfig, parseTrustProxy } from '../src/config.js';
@@ -123,5 +126,62 @@ describe('open sign-up', () => {
     const r = await register(t.client(), 'open@test.dev');
     assert.equal(r.status, 201);
     assert.equal(r.body.user.isAdmin, true, 'first account is still admin');
+  });
+});
+
+describe('AWS single deployment (deploy/aws)', () => {
+  const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
+  const compose = read('../../deploy/aws/compose.yml');
+  const env = Object.fromEntries(
+    [...compose.matchAll(/^ {6}([A-Z_]+): '?([^'\n]*)'?$/gm)].map(([, name, value]) => [name, value]),
+  );
+
+  test('compose settings make a valid production config with one proxy hop', () => {
+    const cfg = loadConfig(env);
+    assert.equal(cfg.production, true);
+    assert.equal(cfg.port, 3001);
+    assert.equal(cfg.trustProxy, 1, 'Caddy is the only proxy in front of the app');
+    assert.equal(cfg.secureCookies, true);
+    assert.ok(cfg.databaseFile.startsWith('/data/'), 'database lives on the mounted folder');
+    assert.match(compose, /- \/opt\/roamr\/data:\/data$/m);
+    assert.match(compose, /localhost:3001\/api\/health/);
+  });
+
+  test('Caddy proxies the whole site to the app and keeps live chat streaming', () => {
+    const caddy = read('../../deploy/aws/Caddyfile');
+    assert.match(caddy, /reverse_proxy app:3001/);
+    assert.match(caddy, /flush_interval -1/);
+  });
+
+  describe('one server answers the web app and the API', () => {
+    let t;
+    let dir;
+    before(async () => {
+      dir = mkdtempSync(path.join(tmpdir(), 'roamr-dist-'));
+      mkdirSync(path.join(dir, 'assets'));
+      writeFileSync(path.join(dir, 'index.html'), '<!doctype html><div id="root"></div>');
+      writeFileSync(path.join(dir, 'assets', 'app-abc123.js'), 'console.log(1)');
+      t = await startTestApp({ config: { staticDir: dir } });
+    });
+    after(() => {
+      t.close();
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('pages and client-side routes get index.html', async () => {
+      for (const p of ['/', '/events/12', '/register?invite=alpha-1']) {
+        const r = await t.client().get(p, { raw: true });
+        assert.equal(r.status, 200, p);
+        assert.match(await r.text(), /id="root"/, p);
+      }
+    });
+
+    test('built assets and the API are served by the same origin', async () => {
+      const asset = await t.client().get('/assets/app-abc123.js', { raw: true });
+      assert.equal(asset.status, 200);
+      assert.equal(await asset.text(), 'console.log(1)');
+      assert.deepEqual((await t.client().get('/api/health')).body, { ok: true });
+      assert.equal((await t.client().get('/api/nope')).status, 404, 'unknown API paths stay JSON 404s');
+    });
   });
 });
