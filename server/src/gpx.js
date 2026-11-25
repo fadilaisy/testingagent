@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { cumulativeDistances, haversine, isValidLatLng } from './geo.js';
+import { cumulativeDistances, isValidLatLng } from './geo.js';
 
 export class GpxError extends Error {}
 
@@ -15,20 +15,43 @@ const parser = new XMLParser({
 // confirmed points so a flat ride doesn't report hundreds of metres of gain.
 const ELEVATION_HYSTERESIS_M = 3;
 const MAX_STORED_POINTS = 1500;
+// A 10-hour ride logged every second with heart rate, cadence and power is
+// around 15 MB of GPX.
+export const MAX_GPX_BYTES = 25 * 1024 * 1024;
 
 function toPoint(pt) {
   const lat = Number(pt.lat);
   const lng = Number(pt.lon);
-  if (!isValidLatLng(lat, lng)) return null;
+  // 0,0 is what some devices write before they have a GPS fix; keeping it
+  // would add a line to the Gulf of Guinea and thousands of kilometres.
+  if (!isValidLatLng(lat, lng) || (lat === 0 && lng === 0)) return null;
   const ele = pt.ele != null && pt.ele !== '' ? Number(pt.ele) : null;
   return [lat, lng, Number.isFinite(ele) ? ele : null];
+}
+
+// Decodes an uploaded file to text. Most GPX files are UTF-8, but some
+// Windows tools save UTF-16, which reads as garbage when decoded as UTF-8.
+export function decodeGpx(buffer) {
+  const b = Buffer.from(buffer);
+  if (b[0] === 0xff && b[1] === 0xfe) return b.subarray(2).toString('utf16le');
+  if (b[0] === 0xfe && b[1] === 0xff) return Buffer.from(b.subarray(2)).swap16().toString('utf16le');
+  if (b.length > 1 && b[0] === 0x3c && b[1] === 0x00) return b.toString('utf16le');
+  return b.toString('utf8').replace(/^﻿/, '');
+}
+
+function notGpxMessage(text) {
+  const head = text.slice(0, 2000);
+  if (/<TrainingCenterDatabase/i.test(head)) return 'This is a TCX file. Export the activity as GPX instead.';
+  if (/<kml/i.test(head)) return 'This is a KML file. Export the route as GPX instead.';
+  if (/\.FIT/.test(text.slice(8, 12))) return 'This is a FIT file. Export the activity as GPX instead.';
+  return 'File is not a GPX document';
 }
 
 // Parses GPX text into a list of [lat, lng, ele|null] points, preferring track
 // points, then route points, then waypoints.
 export function parseGpx(text) {
   if (typeof text !== 'string' || !text.includes('<gpx')) {
-    throw new GpxError('File is not a GPX document');
+    throw new GpxError(typeof text === 'string' ? notGpxMessage(text) : 'File is not a GPX document');
   }
   let doc;
   try {
@@ -56,8 +79,12 @@ export function computeStats(points) {
   const cumulative = cumulativeDistances(points);
   const distanceM = cumulative[cumulative.length - 1];
 
+  // Loops rather than Math.max(...arr): spreading a long ride's 100k+
+  // points overflows the call stack.
   const elevations = points.map((p) => p[2]).filter((e) => e != null);
   const hasElevation = elevations.length >= points.length * 0.5;
+  const max = (arr) => arr.reduce((m, x) => (x > m ? x : m), -Infinity);
+  const min = (arr) => arr.reduce((m, x) => (x < m ? x : m), Infinity);
   let gain = null;
   let loss = null;
   let maxEle = null;
@@ -82,8 +109,8 @@ export function computeStats(points) {
         ref = e;
       }
     }
-    maxEle = Math.max(...elevations);
-    minEle = Math.min(...elevations);
+    maxEle = max(elevations);
+    minEle = min(elevations);
   }
 
   const lats = points.map((p) => p[0]);
@@ -97,31 +124,79 @@ export function computeStats(points) {
     start: points[0],
     end: points[points.length - 1],
     bbox: {
-      minLat: Math.min(...lats),
-      maxLat: Math.max(...lats),
-      minLng: Math.min(...lngs),
-      maxLng: Math.max(...lngs),
+      minLat: min(lats),
+      maxLat: max(lats),
+      minLng: min(lngs),
+      maxLng: max(lngs),
     },
   };
 }
 
-// Reduces a dense track to at most MAX_STORED_POINTS for storage and maps,
-// always keeping the first and last point.
+// Reduces a dense track to at most maxPoints for storage and maps, keeping
+// the points that matter for its shape (Douglas–Peucker): bends and hairpins
+// keep their points and straight stretches lose theirs, so the line stays on
+// the road instead of cutting corners. First and last point are always kept.
 export function simplify(points, maxPoints = MAX_STORED_POINTS) {
-  if (points.length <= maxPoints) return points;
-  const total = cumulativeDistances(points).at(-1);
-  const step = total / (maxPoints - 1);
-  const out = [points[0]];
-  let since = 0;
-  for (let i = 1; i < points.length - 1; i++) {
-    since += haversine(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
-    if (since >= step) {
-      out.push(points[i]);
-      since = 0;
-    }
+  const n = points.length;
+  if (n <= maxPoints) return points;
+
+  // Flat metre coordinates around the track's start; plenty accurate at the
+  // scale of one route.
+  const lat0 = points[0][0];
+  const kx = 111320 * Math.cos((lat0 * Math.PI) / 180);
+  const ky = 110540;
+  const xs = new Float64Array(n);
+  const ys = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    xs[i] = (points[i][1] - points[0][1]) * kx;
+    ys[i] = (points[i][0] - lat0) * ky;
   }
-  out.push(points.at(-1));
-  return out;
+  const offset = (i, a, b) => {
+    const dx = xs[b] - xs[a];
+    const dy = ys[b] - ys[a];
+    const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((xs[i] - xs[a]) * dx + (ys[i] - ys[a]) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(xs[i] - (xs[a] + t * dx), ys[i] - (ys[a] + t * dy));
+  };
+
+  // Each point's importance is how far the line would move without it,
+  // capped by its parent's so a point never outranks the one it hangs off.
+  // The track is split into chunks first: on one long winding track a single
+  // pass degrades to quadratic time (seconds for a long ride).
+  const importance = new Float64Array(n);
+  importance[0] = importance[n - 1] = Infinity;
+  const chunk = Math.max(1000, Math.ceil(n / (maxPoints / 4)));
+  const stack = [];
+  for (let a = 0; a < n - 1; a += chunk) {
+    const b = Math.min(a + chunk, n - 1);
+    if (b < n - 1) importance[b] = 1e9;
+    stack.push([a, b, 1e9]);
+  }
+  while (stack.length) {
+    const [a, b, cap] = stack.pop();
+    let best = -1;
+    let bestD = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = offset(i, a, b);
+      if (d > bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    // Below half a metre nothing would show on a map; stop splitting so a
+    // smooth 100k-point track doesn't take seconds.
+    if (best < 0 || bestD < 0.5) continue;
+    const d = Math.min(bestD, cap);
+    importance[best] = d;
+    stack.push([a, best, d], [best, b, d]);
+  }
+
+  const keep = Array.from({ length: n }, (_, i) => i)
+    .sort((a, b) => importance[b] - importance[a])
+    .slice(0, maxPoints)
+    .sort((a, b) => a - b);
+  return keep.map((i) => points[i]);
 }
 
 // Rounds coordinates to ~1 m and elevation to 0.1 m to keep stored JSON small.

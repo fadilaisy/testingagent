@@ -65,7 +65,9 @@ export function RouteUpload() {
       <p className="muted">Export a .gpx from Strava, Komoot, Garmin or any GPS app. We read the distance, climbing and profile, and build a route page others can plan around.</p>
       <form className="card stack" onSubmit={submit}>
         <Field label="GPX file" error={error?.field === 'GPX file' && error.message}>
-          <input type="file" accept=".gpx,application/gpx+xml" onChange={choose} required />
+          {/* Phones often report .gpx files as octet-stream or XML; listing
+              only .gpx can grey the file out in the picker. The server checks it. */}
+          <input type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml,application/octet-stream" onChange={choose} required />
         </Field>
 
         {preview && (

@@ -1,7 +1,8 @@
 // Demo data so a fresh install shows the full loop: routes, people planning
 // activities, group chat, track conditions, communities and events.
-// Routes are synthetic tracks drawn through real place coordinates around
-// Jakarta, Bogor, Sentul and Puncak; places and people are fictional.
+// Routes are real tracks along roads and trails around Jakarta, Bogor,
+// Sentul and Puncak (seed-tracks.json, built from OpenStreetMap by
+// scripts/build-seed-tracks.js); places and people are fictional.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,45 +10,11 @@ import { fileURLToPath } from 'node:url';
 import { estimateDifficulty, estimateDurationSeconds } from './activities.js';
 import { hashPassword } from './auth.js';
 import { openDb, transaction } from './db.js';
-import { haversine } from './geo.js';
 import { compactPoints, computeStats, simplify, toGpx } from './gpx.js';
 
 export const DEMO_PASSWORD = 'password123';
 
-function prng(seed) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Interpolates [lat, lng, ele] waypoints every ~40 m with gentle sideways
-// wiggle and elevation noise so the result looks like a recorded track.
-export function synthTrack(waypoints, seed = 1) {
-  const rand = prng(seed);
-  const out = [];
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const [aLat, aLng, aEle] = waypoints[i];
-    const [bLat, bLng, bEle] = waypoints[i + 1];
-    const d = haversine(aLat, aLng, bLat, bLng);
-    const steps = Math.max(2, Math.round(d / 40));
-    const wiggle = (rand() - 0.5) * 0.004;
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps;
-      const bend = Math.sin(t * Math.PI) * wiggle + Math.sin(t * Math.PI * 6) * 0.0002;
-      const lat = aLat + (bLat - aLat) * t + bend * (bLng - aLng > 0 ? 1 : -1) * 0.5;
-      const lng = aLng + (bLng - aLng) * t - bend * (bLat - aLat > 0 ? 1 : -1) * 0.5;
-      const ele = aEle + (bEle - aEle) * t + (rand() - 0.5) * 2;
-      out.push([lat, lng, Math.round(ele * 10) / 10]);
-    }
-  }
-  out.push(waypoints.at(-1));
-  return out;
-}
+const TRACKS = JSON.parse(fs.readFileSync(new URL('./seed-tracks.json', import.meta.url), 'utf8'));
 
 const ROUTES = [
   {
@@ -57,59 +24,38 @@ const ROUTES = [
     location: 'BSD – Bogor – Puncak',
     description: 'The classic weekend climb: flat roll out of BSD through Parung and Bogor, then the long drag up from Gadog to Puncak Pass. Leave early to beat the traffic.',
     creator: 'kevin',
-    waypoints: [
-      [-6.302, 106.6528, 40], [-6.35, 106.69, 70], [-6.42, 106.73, 110], [-6.5, 106.77, 180],
-      [-6.595, 106.8166, 260], [-6.64, 106.835, 380], [-6.66, 106.85, 480], [-6.665, 106.88, 600],
-      [-6.68, 106.93, 900], [-6.695, 106.97, 1200], [-6.703, 106.995, 1450],
-    ],
   },
   {
     key: 'sentul',
     name: 'Sentul Rainbow Hills Loop',
     activity: 'road_cycling',
     location: 'Sentul, Bogor',
-    description: 'Popular loop from Sentul City up to Rainbow Hills and back. Short but punchy climbs.',
+    description: 'Popular ride from Sentul City up to the Rainbow Hills (Bukit Pelangi) gate and back. Short but punchy climbs.',
     creator: 'daniel',
-    waypoints: [
-      [-6.565, 106.853, 150], [-6.575, 106.875, 220], [-6.585, 106.9, 320], [-6.6, 106.92, 600],
-      [-6.615, 106.91, 480], [-6.605, 106.885, 300], [-6.585, 106.865, 200], [-6.565, 106.853, 150],
-    ],
   },
   {
     key: 'sudirman',
     name: 'Sudirman–Thamrin Morning Run',
     activity: 'running',
     location: 'Senayan, Jakarta',
-    description: 'Out-and-back from GBK Senayan to Bundaran HI along Sudirman. Best on car-free Sunday mornings.',
+    description: 'A lap of GBK Senayan, then out-and-back to Bundaran HI along Sudirman. Best on car-free Sunday mornings.',
     creator: 'sarah',
-    waypoints: [
-      [-6.2185, 106.8022, 12], [-6.2125, 106.8155, 11], [-6.2035, 106.8215, 10], [-6.195, 106.823, 9],
-      [-6.2035, 106.8219, 10], [-6.2128, 106.816, 11], [-6.2185, 106.8022, 12],
-    ],
   },
   {
     key: 'bsdrun',
     name: 'BSD Green Office Park 5K',
     activity: 'running',
     location: 'BSD, Tangerang Selatan',
-    description: 'Shaded, flat 5K loop around Green Office Park. Good for easy runs and intervals.',
+    description: 'Flat loop from Green Office Park along the BSD Grand Boulevard. Good for easy runs and intervals.',
     creator: 'andrew',
-    waypoints: [
-      [-6.3015, 106.65, 35], [-6.2965, 106.657, 36], [-6.3005, 106.665, 37], [-6.308, 106.6625, 36],
-      [-6.31, 106.6545, 35], [-6.3015, 106.65, 35],
-    ],
   },
   {
     key: 'pancar',
     name: 'Gunung Pancar Forest Trail',
     activity: 'trail_running',
     location: 'Babakan Madang, Bogor',
-    description: 'Pine forest singletrack with a steady climb to the ridge. Slippery after rain.',
+    description: 'From the Gunung Pancar hot springs up through the pine forest to the summit and back. Slippery after rain.',
     creator: 'rina',
-    waypoints: [
-      [-6.583, 106.903, 320], [-6.588, 106.912, 450], [-6.593, 106.922, 640], [-6.598, 106.93, 800],
-      [-6.592, 106.935, 720], [-6.585, 106.925, 520], [-6.583, 106.903, 320],
-    ],
   },
   {
     key: 'leuwihejo',
@@ -118,33 +64,22 @@ const ROUTES = [
     location: 'Babakan Madang, Bogor',
     description: 'Easy hike through villages and rice fields to the turquoise Leuwi Hejo waterfall pools.',
     creator: 'rina',
-    waypoints: [
-      [-6.594, 106.94, 300], [-6.598, 106.947, 360], [-6.603, 106.953, 450], [-6.607, 106.958, 540],
-    ],
   },
   {
     key: 'gravel',
     name: 'Babakan Madang Gravel Loop',
     activity: 'gravel',
     location: 'Sentul – Babakan Madang',
-    description: 'Mixed tarmac and village gravel roads east of Sentul. Some loose sections after rain.',
+    description: 'Mixed tarmac and village gravel roads east of Sentul, out past Leuwi Asih and back via Bukit Pelangi. Some loose sections after rain.',
     creator: 'michael',
-    waypoints: [
-      [-6.56, 106.87, 160], [-6.555, 106.905, 220], [-6.565, 106.94, 330], [-6.585, 106.965, 420],
-      [-6.61, 106.95, 380], [-6.62, 106.92, 300], [-6.6, 106.89, 220], [-6.575, 106.875, 180], [-6.56, 106.87, 160],
-    ],
   },
   {
     key: 'mtb',
     name: 'Pondok Pemburu MTB Descent',
     activity: 'mtb',
     location: 'Gunung Pancar, Bogor',
-    description: 'Climb the fire road, then enjoy the flowy singletrack descent back to the trailhead.',
+    description: 'Climb from Gunung Pancar to the Pondok Pemburu camp, then enjoy the descent back to the trailhead.',
     creator: 'michael',
-    waypoints: [
-      [-6.578, 106.918, 420], [-6.585, 106.93, 560], [-6.592, 106.942, 760], [-6.6, 106.95, 900],
-      [-6.595, 106.94, 700], [-6.587, 106.928, 520], [-6.578, 106.918, 420],
-    ],
   },
 ];
 
@@ -193,8 +128,8 @@ const PLACES = [
   ['Warung Kopi Pinus', 'coffee', -6.5838, 106.9041, 4.5, 0, '06:00-18:00'],
   ['Warung Nasi Liwet Pancar', 'food', -6.5822, 106.9022, 4.4, 0, '07:00-19:00'],
   ['Parkir Gunung Pancar', 'parking', -6.5831, 106.9029, null, 0, '06:00-18:00'],
-  ['Warung Leuwi Hejo', 'food', -6.6068, 106.9574, 4.1, 0, '07:00-17:00'],
-  ['Kopi Curug', 'coffee', -6.6061, 106.9582, 4.3, 0, '08:00-17:00'],
+  ['Warung Leuwi Hejo', 'food', -6.5957, 106.9538, 4.1, 0, '07:00-17:00'],
+  ['Kopi Curug', 'coffee', -6.5946, 106.9553, 4.3, 0, '08:00-17:00'],
 ];
 
 // Date helper: `days` from today at a wall-clock time in Jakarta (UTC+7).
@@ -230,7 +165,7 @@ export function seed(db) {
 
     const routes = {};
     ROUTES.forEach((r, i) => {
-      const points = synthTrack(r.waypoints, i + 7);
+      const points = TRACKS[r.key];
       const stats = computeStats(points);
       const geometry = compactPoints(simplify(points));
       routes[r.key] = db
