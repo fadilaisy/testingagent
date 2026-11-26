@@ -9,11 +9,11 @@ browser ──► Lightsail instance roamr-api (ap-southeast-2, static IP)
 
 The web app and the API run as **one deployment** on one instance: the Docker image builds `web/` and the server serves it next to `/api`, so there is no Vercel, no CORS and the `sid` cookie (HttpOnly, SameSite=Lax, Secure) is first-party on the site's own domain. This replaces the Vercel + Fly.io setup in [DEPLOY.md](DEPLOY.md); its Google, Resend and Midtrans steps still apply, with secrets going in `/opt/roamr/.env` on the instance instead of `fly secrets set`, and `https://<SITE_HOST>` as the site address.
 
-**Why Lightsail and not EC2, ECS or Lambda.** The server keeps SQLite and the live-chat hub in one process, so it needs exactly one always-on machine with a disk. Lightsail is EC2 with a fixed monthly price that already includes the disk, a static IP and 2 TB of traffic. Serverless options would lose the database and break live chat.
+**Why Lightsail and not EC2, ECS or Lambda.** The server keeps SQLite and the live-chat hub in one process, so it needs exactly one always-on machine with a disk. Lightsail is EC2 with a fixed monthly price that already includes the disk, a static IP and 1 TB of traffic. Serverless options would lose the database and break live chat.
 
 | Item | Cost |
 |---|---|
-| Lightsail Linux, 1 GB RAM, 2 vCPU, 40 GB SSD, 2 TB transfer (`micro_3_0`) | about $7 / month |
+| Lightsail Linux, 1 GB RAM, 2 vCPU, 40 GB SSD, 1 TB transfer (`micro_3_2`) | about $7 / month |
 | Static IP (attached) | free |
 | Automatic daily snapshots (7 kept) | storage at about $0.05 / GB-month |
 
@@ -27,7 +27,7 @@ With the AWS CLI signed in to the `roamr` profile:
 export AWS_PROFILE=roamr AWS_REGION=ap-southeast-2
 
 aws lightsail create-instances --instance-names roamr-api \
-  --availability-zone ap-southeast-2a --blueprint-id ubuntu_24_04 --bundle-id micro_3_0 \
+  --availability-zone ap-southeast-2a --blueprint-id ubuntu_24_04 --bundle-id micro_3_2 \
   --user-data 'curl -fsSL https://raw.githubusercontent.com/fadilaisy/testingagent/main/deploy/aws/setup-instance.sh | bash'
 
 aws lightsail allocate-static-ip --static-ip-name roamr-api-ip
