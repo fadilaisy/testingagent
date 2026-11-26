@@ -5,3 +5,4 @@ server/data/*.db-*
 .env
 .env.*
 !.env.example
+server/data/pglite/

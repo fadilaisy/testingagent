@@ -20,15 +20,15 @@ export function safeNextPath(next) {
 
 // Finds or creates the user for a verified Google identity. Throws
 // GoogleAuthError for sign-ins that must not go through.
-export function signInWithGoogle(db, config, identity, { inviteCode = null } = {}) {
-  return transaction(db, () => {
-    const bySub = db.prepare('SELECT * FROM users WHERE google_sub = ?').get(identity.sub);
+export async function signInWithGoogle(db, config, identity, { inviteCode = null } = {}) {
+  return await transaction(db, async (db) => {
+    const bySub = await db.prepare('SELECT * FROM users WHERE google_sub = ?').get(identity.sub);
     if (bySub) {
       if (bySub.suspended) throw new GoogleAuthError('suspended', 'This account is suspended');
       return { user: bySub, created: false, passwordCleared: false };
     }
 
-    const byEmail = db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
+    const byEmail = await db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
     if (byEmail) {
       if (byEmail.google_sub) throw new GoogleAuthError('linked_elsewhere', 'This email is linked to a different Google account');
       if (byEmail.suspended) throw new GoogleAuthError('suspended', 'This account is suspended');
@@ -38,10 +38,10 @@ export function signInWithGoogle(db, config, identity, { inviteCode = null } = {
       // So the unproven password is removed and every session is ended; the
       // owner can set a new password with "Forgot password".
       const clearPassword = !byEmail.email_verified && byEmail.password_hash !== NO_PASSWORD;
-      if (clearPassword) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(byEmail.id);
-      const user = db
+      if (clearPassword) await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(byEmail.id);
+      const user = await db
         .prepare(
-          `UPDATE users SET google_sub = ?, email_verified = 1, password_hash = CASE WHEN ? THEN ? ELSE password_hash END,
+          `UPDATE users SET google_sub = ?, email_verified = 1, password_hash = CASE WHEN ? = 1 THEN ? ELSE password_hash END,
              photo_url = COALESCE(photo_url, ?) WHERE id = ? RETURNING *`,
         )
         .get(identity.sub, clearPassword ? 1 : 0, NO_PASSWORD, identity.picture, byEmail.id);
@@ -53,9 +53,9 @@ export function signInWithGoogle(db, config, identity, { inviteCode = null } = {
     }
     // Same admin rule as email sign-up.
     const adminEmails = config.adminEmails ?? [];
-    const isAdmin = adminEmails.length ? adminEmails.includes(identity.email) : !db.prepare('SELECT 1 FROM users LIMIT 1').get();
+    const isAdmin = adminEmails.length ? adminEmails.includes(identity.email) : !(await db.prepare('SELECT 1 FROM users LIMIT 1').get());
     const name = (identity.name || identity.email.split('@')[0]).slice(0, 60);
-    const user = db
+    const user = await db
       .prepare(
         `INSERT INTO users (email, password_hash, name, photo_url, is_admin, google_sub, email_verified)
          VALUES (?, ?, ?, ?, ?, ?, 1) RETURNING *`,
@@ -77,13 +77,13 @@ export function googleRouter({ db, config, google, notifier }) {
   };
 
   // Step 1: send the browser to Google.
-  router.get('/auth/google', limit, (req, res) => {
+  router.get('/auth/google', limit, async (req, res) => {
     if (!google) return res.redirect(failure('not_configured'));
     const state = crypto.randomBytes(24).toString('base64url');
     const nonce = crypto.randomBytes(24).toString('base64url');
     const { verifier, challenge } = pkcePair();
-    db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(nowIso());
-    db.prepare(
+    await db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(nowIso());
+    await db.prepare(
       'INSERT INTO oauth_states (state, nonce, code_verifier, invite_code, next_path, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
     ).run(
       state, nonce, verifier,
@@ -110,8 +110,8 @@ export function googleRouter({ db, config, google, notifier }) {
       // The state must match the cookie this browser got in step 1 (stops
       // someone from logging a victim into the attacker's account) and is
       // used up straight away.
-      const pending = state ? db.prepare('DELETE FROM oauth_states WHERE state = ? RETURNING *').get(state) : null;
-      db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(nowIso());
+      const pending = state ? await db.prepare('DELETE FROM oauth_states WHERE state = ? RETURNING *').get(state) : null;
+      await db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(nowIso());
       const sameBrowser =
         cookieState.length === state.length && state && crypto.timingSafeEqual(Buffer.from(cookieState), Buffer.from(state));
       if (!pending || !sameBrowser || pending.expires_at <= nowIso()) return res.redirect(failure('expired'));
@@ -123,11 +123,11 @@ export function googleRouter({ db, config, google, notifier }) {
 
       const idToken = await google.exchangeCode(req.query.code, pending.code_verifier);
       const identity = await google.verifyIdToken(idToken, { nonce: pending.nonce });
-      const { user, created, passwordCleared } = signInWithGoogle(db, config, identity, { inviteCode: pending.invite_code });
-      const { token } = createSession(db, user.id);
+      const { user, created, passwordCleared } = await signInWithGoogle(db, config, identity, { inviteCode: pending.invite_code });
+      const { token } = await createSession(db, user.id);
       res.cookie('sid', token, sessionCookieOptions(config.secureCookies));
       if (passwordCleared) {
-        notifier.notify(user.id, {
+        await notifier.notify(user.id, {
           type: 'account',
           title: 'Google is now linked to your account',
           body: 'For your safety the old password was removed. Use "Forgot password" if you want to log in with a password too.',

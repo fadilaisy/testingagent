@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateDifficulty, estimateDurationSeconds } from './activities.js';
 import { hashPassword } from './auth.js';
+import { loadConfig } from './config.js';
 import { openDb, transaction } from './db.js';
 import { compactPoints, computeStats, simplify, toGpx } from './gpx.js';
 
@@ -141,13 +142,13 @@ function wib(days, hour, minute = 0) {
 }
 const minutesAgo = (m) => new Date(Date.now() - m * 60000).toISOString();
 
-export function seed(db) {
-  return transaction(db, () => {
+export async function seed(db) {
+  return await transaction(db, async (db) => {
     const users = {};
     const passwordHash = hashPassword(DEMO_PASSWORD);
     for (const u of USERS) {
       const [lat, lng] = CITY[u.city];
-      users[u.key] = db
+      users[u.key] = (await db
         .prepare(
           `INSERT INTO users (email, password_hash, name, bio, location_name, lat, lng, experience, activities,
              is_admin, onboarded, emergency_name, emergency_phone, created_at)
@@ -155,20 +156,20 @@ export function seed(db) {
         )
         .get(u.email, passwordHash, u.name, u.bio, u.city, lat, lng, u.experience ?? 'beginner',
           JSON.stringify(u.activities), u.admin ? 1 : 0, u.admin ? null : 'Family', u.admin ? null : '+62 812 0000 0000',
-          minutesAgo(60 * 24 * 60)).id;
+          minutesAgo(60 * 24 * 60))).id;
       if (u.premium) {
-        db.prepare("INSERT INTO subscriptions (user_id, plan, status, start_date, end_date) VALUES (?, 'community_creator', 'active', ?, ?)").run(
+        await db.prepare("INSERT INTO subscriptions (user_id, plan, status, start_date, end_date) VALUES (?, 'community_creator', 'active', ?, ?)").run(
           users[u.key], minutesAgo(60 * 24 * 10), new Date(Date.now() + 20 * 864e5).toISOString(),
         );
       }
     }
 
     const routes = {};
-    ROUTES.forEach((r, i) => {
+    for (const [i, r] of ROUTES.entries()) {
       const points = TRACKS[r.key];
       const stats = computeStats(points);
       const geometry = compactPoints(simplify(points));
-      routes[r.key] = db
+      routes[r.key] = (await db
         .prepare(
           `INSERT INTO routes (creator_id, activity_type, name, description, location_name, gpx_text, geometry,
              distance_m, elevation_gain, elevation_loss, max_elevation, est_duration_s, difficulty,
@@ -182,35 +183,35 @@ export function seed(db) {
           estimateDifficulty(r.activity, stats.distanceM, stats.elevationGain),
           stats.start[0], stats.start[1], stats.end[0], stats.end[1],
           stats.bbox.minLat, stats.bbox.maxLat, stats.bbox.minLng, stats.bbox.maxLng, minutesAgo(60 * 24 * (30 - i)),
-        ).id;
-    });
+        )).id;
+    }
 
-    const routeRow = (key) => db.prepare('SELECT * FROM routes WHERE id = ?').get(routes[key]);
-    const plan = (o) => {
-      const r = routeRow(o.route);
-      const id = db
+    const routeRow = async (key) => await db.prepare('SELECT * FROM routes WHERE id = ?').get(routes[key]);
+    const plan = async (o) => {
+      const r = await routeRow(o.route);
+      const id = (await db
         .prepare(
           `INSERT INTO activity_plans (route_id, creator_id, title, activity_type, starts_at, meeting_point, meeting_lat,
              meeting_lng, participant_limit, pace, description, visibility, status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         )
         .get(routes[o.route], users[o.host], o.title, r.activity_type, o.startsAt, o.meetingPoint, r.start_lat, r.start_lng,
-          o.limit ?? null, o.pace ?? null, o.description ?? '', o.visibility ?? 'public', o.status ?? 'open').id;
+          o.limit ?? null, o.pace ?? null, o.description ?? '', o.visibility ?? 'public', o.status ?? 'open')).id;
       for (const key of [o.host, ...(o.members ?? [])]) {
-        db.prepare("INSERT INTO activity_participants (activity_id, user_id, status, checked_in_at) VALUES (?, ?, 'joined', ?)").run(
+        await db.prepare("INSERT INTO activity_participants (activity_id, user_id, status, checked_in_at) VALUES (?, ?, 'joined', ?)").run(
           id, users[key], o.checkedIn?.includes(key) ? o.startsAt : null,
         );
       }
       for (const key of o.requests ?? []) {
-        db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'requested')").run(id, users[key]);
+        await db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'requested')").run(id, users[key]);
       }
       const msg = db.prepare('INSERT INTO chat_messages (activity_id, user_id, kind, body, created_at) VALUES (?, ?, ?, ?, ?)');
-      msg.run(id, null, 'system', `${USERS.find((u) => u.key === o.host).name} created this activity`, minutesAgo(60 * 24 * 2));
-      for (const [who, body, ago] of o.chat ?? []) msg.run(id, users[who], 'text', body, minutesAgo(ago));
+      await msg.run(id, null, 'system', `${USERS.find((u) => u.key === o.host).name} created this activity`, minutesAgo(60 * 24 * 2));
+      for (const [who, body, ago] of o.chat ?? []) await msg.run(id, users[who], 'text', body, minutesAgo(ago));
       return id;
     };
 
-    const sundayRide = plan({
+    const sundayRide = await plan({
       route: 'puncak', host: 'kevin', title: 'Sunday Morning Ride', startsAt: wib(2, 6), meetingPoint: 'BSD Green Office Park, main gate',
       limit: 12, pace: '25–28 km/h', description: 'No-drop group ride to Puncak Pass. Coffee at the top.',
       members: ['daniel', 'andrew', 'michael', 'sarah'],
@@ -220,39 +221,39 @@ export function seed(db) {
         ['michael', 'Just passed there yesterday. Road is good, some road work around KM 32.', 90],
       ],
     });
-    const lunchLoop = plan({
+    const lunchLoop = await plan({
       route: 'sentul', host: 'michael', title: 'Sentul Lunch Loop', startsAt: new Date(Date.now() + 60 * 60000).toISOString(),
       meetingPoint: 'Sentul City, near the circuit roundabout', limit: 8, pace: '22–25 km/h',
       members: ['daniel', 'budi'],
       chat: [['michael', 'Rolling out in an hour, meet at the roundabout.', 20]],
     });
-    plan({
+    await plan({
       route: 'sentul', host: 'daniel', title: 'Sentul Sunrise Loop', startsAt: wib(1, 5, 30), meetingPoint: 'Sentul City, near the circuit roundabout',
       limit: 8, pace: '27–30 km/h', members: ['kevin'],
     });
-    plan({
+    await plan({
       route: 'sudirman', host: 'sarah', title: 'Car-free Day Run', startsAt: wib(3, 6), meetingPoint: 'GBK Senayan, Gate 5',
       pace: '6:00/km', description: 'Easy conversational pace, all levels welcome.', members: ['kevin', 'andrew'],
     });
-    plan({
+    await plan({
       route: 'bsdrun', host: 'andrew', title: 'BSD Tempo Tuesday', startsAt: wib(4, 18, 30), meetingPoint: 'Green Office Park lobby',
       pace: '5:15/km', members: [],
     });
-    plan({
+    await plan({
       route: 'pancar', host: 'rina', title: 'Pancar Trail Session', startsAt: wib(3, 6, 30), meetingPoint: 'Gunung Pancar parking lot',
       limit: 10, pace: 'Easy', visibility: 'private', description: 'Members of Sentul Trail Runners first, ask to join.',
       requests: ['budi'],
     });
-    plan({
+    await plan({
       route: 'gravel', host: 'michael', title: 'Gravel Saturday', startsAt: wib(5, 6), meetingPoint: 'Sentul Velo Workshop',
       limit: 6, pace: '20 km/h', members: ['daniel'],
     });
     // A finished ride so profiles have activity history.
-    plan({
+    await plan({
       route: 'puncak', host: 'kevin', title: 'Puncak Ride', startsAt: wib(-5, 6), meetingPoint: 'BSD Green Office Park, main gate',
       status: 'completed', members: ['daniel', 'sarah'], checkedIn: ['kevin', 'daniel', 'sarah'],
     });
-    plan({
+    await plan({
       route: 'sudirman', host: 'sarah', title: 'Car-free Day Run', startsAt: wib(-4, 6), meetingPoint: 'GBK Senayan, Gate 5',
       status: 'completed', members: ['kevin'], checkedIn: ['kevin', 'sarah'],
     });
@@ -260,54 +261,54 @@ export function seed(db) {
     const report = db.prepare(
       'INSERT INTO track_reports (route_id, user_id, activity_id, category, value, km, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     );
-    report.run(routes.puncak, users.daniel, null, 'road', 'road_work', 32, 'One lane closed near the bridge', minutesAgo(40));
-    report.run(routes.puncak, users.michael, sundayRide, 'traffic', 'moderate', 30, '', minutesAgo(20));
-    report.run(routes.puncak, users.andrew, null, 'traffic', 'heavy', 75, 'Weekend jam from Gadog upward', minutesAgo(180));
-    report.run(routes.puncak, users.sarah, null, 'traffic', 'heavy', 77, '', minutesAgo(120));
-    report.run(routes.puncak, users.kevin, null, 'weather', 'cloudy', 70, '', minutesAgo(60));
-    report.run(routes.sentul, users.daniel, lunchLoop, 'road', 'good', null, 'Fresh asphalt on the climb', minutesAgo(65));
-    report.run(routes.sentul, users.michael, null, 'crowd', 'medium', 8, '', minutesAgo(30));
-    report.run(routes.pancar, users.rina, null, 'trail', 'muddy', 4, 'Rained last night, wear trail shoes', minutesAgo(300));
-    report.run(routes.sudirman, users.sarah, null, 'crowd', 'high', 2, 'Car-free day crowds near HI', minutesAgo(600));
+    await report.run(routes.puncak, users.daniel, null, 'road', 'road_work', 32, 'One lane closed near the bridge', minutesAgo(40));
+    await report.run(routes.puncak, users.michael, sundayRide, 'traffic', 'moderate', 30, '', minutesAgo(20));
+    await report.run(routes.puncak, users.andrew, null, 'traffic', 'heavy', 75, 'Weekend jam from Gadog upward', minutesAgo(180));
+    await report.run(routes.puncak, users.sarah, null, 'traffic', 'heavy', 77, '', minutesAgo(120));
+    await report.run(routes.puncak, users.kevin, null, 'weather', 'cloudy', 70, '', minutesAgo(60));
+    await report.run(routes.sentul, users.daniel, lunchLoop, 'road', 'good', null, 'Fresh asphalt on the climb', minutesAgo(65));
+    await report.run(routes.sentul, users.michael, null, 'crowd', 'medium', 8, '', minutesAgo(30));
+    await report.run(routes.pancar, users.rina, null, 'trail', 'muddy', 4, 'Rained last night, wear trail shoes', minutesAgo(300));
+    await report.run(routes.sudirman, users.sarah, null, 'crowd', 'high', 2, 'Car-free day crowds near HI', minutesAgo(600));
 
-    const community = (o) => {
-      const id = db
+    const community = async (o) => {
+      const id = (await db
         .prepare(
           `INSERT INTO communities (owner_id, name, description, activity_type, location_name, lat, lng, rules, privacy, kind, organizer_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         )
         .get(users[o.owner], o.name, o.description, o.activity, o.location, o.lat, o.lng, o.rules, o.privacy ?? 'public',
-          o.organizer ? 'organizer' : 'community', o.organizer ? 'approved' : null).id;
-      db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'admin', 'member')").run(id, users[o.owner]);
+          o.organizer ? 'organizer' : 'community', o.organizer ? 'approved' : null)).id;
+      await db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'admin', 'member')").run(id, users[o.owner]);
       for (const m of o.members) {
-        db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'member', 'member')").run(id, users[m]);
+        await db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'member', 'member')").run(id, users[m]);
       }
       return id;
     };
-    const jcc = community({
+    const jcc = await community({
       owner: 'sarah', name: 'Jakarta Cycling Club', activity: 'road_cycling', location: 'Jakarta', lat: -6.2088, lng: 106.8456,
       description: 'Weekly group rides around Jakarta, Sentul and Puncak for all levels.',
       rules: '1. Helmets always.\n2. No-drop unless stated.\n3. Respect traffic rules.',
       members: ['kevin', 'daniel', 'andrew', 'michael'],
     });
-    const stc = community({
+    const stc = await community({
       owner: 'rina', name: 'Sentul Trail Runners', activity: 'trail_running', location: 'Sentul, Bogor', lat: -6.5658, lng: 106.8541,
       description: 'Trail running sessions in Gunung Pancar and around Babakan Madang.',
       rules: 'Bring water and a headlamp for early sessions.', privacy: 'private', members: [],
     });
-    const bsdr = community({
+    const bsdr = await community({
       owner: 'andrew', name: 'BSD Runners', activity: 'running', location: 'BSD, Tangerang Selatan', lat: -6.302, lng: 106.6528,
       description: 'Easy runs, tempo sessions and long runs around BSD.', rules: 'Everyone is welcome.', members: ['kevin', 'sarah'],
     });
 
-    const fondo = community({
+    const fondo = await community({
       owner: 'sarah', name: 'Puncak Gran Fondo', activity: 'road_cycling', location: 'Bogor', lat: -6.5658, lng: 106.8541, organizer: true,
       description: 'Organizer of supported rides and races around Sentul and Puncak.', rules: '', members: [],
     });
 
-    const event = (o) => {
-      const r = o.route ? routeRow(o.route) : null;
-      const id = db
+    const event = async (o) => {
+      const r = o.route ? await routeRow(o.route) : null;
+      const id = (await db
         .prepare(
           `INSERT INTO events (community_id, route_id, created_by, title, description, activity_type, starts_at, ends_at,
              meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km,
@@ -317,27 +318,27 @@ export function seed(db) {
         .get(o.community, r?.id ?? null, users[o.by], o.title, o.description, o.activity, o.startsAt, o.endsAt ?? null,
           o.meetingPoint, r?.start_lat ?? o.lat, r?.start_lng ?? o.lng, o.max ?? null, r?.difficulty ?? null, o.pace ?? null, o.radius ?? null,
           o.price ? 'paid' : 'community', o.price ?? null, o.price ? 'manual' : null, o.paymentEmail ?? null, o.paymentInstructions ?? null,
-          JSON.stringify(o.perks ?? [])).id;
-      for (const k of o.registered ?? []) db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(id, users[k]);
+          JSON.stringify(o.perks ?? []))).id;
+      for (const k of o.registered ?? []) await db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(id, users[k]);
       return id;
     };
-    event({
+    await event({
       community: jcc, by: 'sarah', title: 'Sunday Sunrise Ride', route: 'sentul', activity: 'road_cycling', startsAt: wib(6, 5, 30), endsAt: wib(6, 8, 30),
       meetingPoint: 'Sentul City roundabout', max: 60, pace: '25 km/h', radius: 25,
       description: 'Our monthly sunrise loop. Two groups: social (25 km/h) and fast (30+ km/h). Breakfast after.',
       registered: ['sarah', 'kevin', 'daniel', 'michael'],
     });
-    event({
+    await event({
       community: bsdr, by: 'andrew', title: 'BSD Night 5K', route: 'bsdrun', activity: 'running', startsAt: wib(4, 19, 30),
       meetingPoint: 'Green Office Park lobby', max: 100, pace: 'All paces', radius: 10,
       description: 'Relaxed 5K under the lights, followed by drinks at Kopi Kayuh.', registered: ['andrew', 'kevin'],
     });
-    event({
+    await event({
       community: stc, by: 'rina', title: 'Pancar Trail Clinic', route: 'pancar', activity: 'trail_running', startsAt: wib(9, 6),
       meetingPoint: 'Gunung Pancar parking lot', max: 20, description: 'Downhill technique and footwork drills.', registered: ['rina'],
     });
     // A paid event (manual confirmation, since the demo has no payment gateway keys).
-    event({
+    await event({
       community: fondo, by: 'sarah', title: 'Puncak Gran Fondo (supported)', route: 'sentul', activity: 'road_cycling', startsAt: wib(13, 5),
       meetingPoint: 'Sentul City roundabout', max: 40, pace: '27 km/h',
       description: 'Supported ride with a sag wagon, mechanic, two food stops and a finisher jersey.',
@@ -349,12 +350,12 @@ export function seed(db) {
     const place = db.prepare(
       'INSERT INTO places (name, category, lat, lng, rating, cyclist_friendly, opening_hours) VALUES (?, ?, ?, ?, ?, ?, ?)',
     );
-    for (const p of PLACES) place.run(...p);
+    for (const p of PLACES) await place.run(...p);
 
     const note = db.prepare('INSERT INTO notifications (user_id, type, title, body, link, created_at) VALUES (?, ?, ?, ?, ?, ?)');
-    note.run(users.kevin, 'activity_join', 'Michael joined Sunday Morning Ride', '', `/activities/${sundayRide}`, minutesAgo(200));
-    note.run(users.kevin, 'track_update', 'New condition on BSD → Puncak Pass', 'Road condition: road work at KM 32', `/activities/${sundayRide}`, minutesAgo(40));
-    note.run(users.kevin, 'community', 'New event from Jakarta Cycling Club', 'Sunday Sunrise Ride', '/events/1', minutesAgo(600));
+    await note.run(users.kevin, 'activity_join', 'Michael joined Sunday Morning Ride', '', `/activities/${sundayRide}`, minutesAgo(200));
+    await note.run(users.kevin, 'track_update', 'New condition on BSD → Puncak Pass', 'Road condition: road work at KM 32', `/activities/${sundayRide}`, minutesAgo(40));
+    await note.run(users.kevin, 'community', 'New event from Jakarta Cycling Club', 'Sunday Sunrise Ride', '/events/1', minutesAgo(600));
 
     return { users, routes };
   });
@@ -363,25 +364,29 @@ export function seed(db) {
 // Demo accounts all use this domain; production refuses to start with them.
 export const DEMO_EMAIL_DOMAIN = '@roamr.test';
 
-export function hasDemoData(db) {
-  return Boolean(db.prepare("SELECT 1 FROM users WHERE email LIKE '%' || ? LIMIT 1").get(DEMO_EMAIL_DOMAIN));
+export async function hasDemoData(db) {
+  return Boolean(await db.prepare("SELECT 1 FROM users WHERE email LIKE '%' || ? LIMIT 1").get(DEMO_EMAIL_DOMAIN));
 }
 
-export function seedIfEmpty(db) {
-  if (db.prepare('SELECT 1 FROM users LIMIT 1').get()) return false;
-  seed(db);
+export async function seedIfEmpty(db) {
+  if (await db.prepare('SELECT 1 FROM users LIMIT 1').get()) return false;
+  await seed(db);
   console.log(`Seeded demo data. Log in as kevin@roamr.test / ${DEMO_PASSWORD} (admin: admin@roamr.test).`);
   return true;
 }
 
 // `npm run seed` wipes the local database and reseeds it.
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const file = process.env.DATABASE_FILE || path.join(here, '..', 'data', 'roamr.db');
+  const target = loadConfig().database;
   if (process.argv.includes('--reset')) {
-    for (const suffix of ['', '-wal', '-shm']) fs.rmSync(file + suffix, { force: true });
+    if (/^postgres(ql)?:\/\//.test(target)) {
+      console.error('--reset only wipes the local PGlite database; drop a Postgres database yourself.');
+      process.exit(1);
+    }
+    // Only ever remove a folder that is a PGlite database.
+    if (fs.existsSync(path.join(target, 'PG_VERSION'))) fs.rmSync(target, { recursive: true, force: true });
   }
-  const db = openDb(file);
-  if (!seedIfEmpty(db)) console.log('Database already has data; run with --reset to start over.');
-  db.close();
+  const db = await openDb(target);
+  if (!(await seedIfEmpty(db))) console.log('Database already has data; run with --reset to start over.');
+  await db.close();
 }

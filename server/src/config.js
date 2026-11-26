@@ -2,7 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const DEFAULT_DATABASE_FILE = path.join(here, '..', 'data', 'roamr.db');
+// Local development keeps an embedded PGlite database in this folder.
+export const DEFAULT_DATABASE_DIR = path.join(here, '..', 'data', 'pglite');
 
 // Reads server settings from environment variables (see .env.example).
 // Throws on settings that would lose data or leave the app open by mistake,
@@ -11,8 +12,9 @@ export function loadConfig(env = process.env) {
   const production = env.NODE_ENV === 'production';
   const flag = (name, fallback) => (env[name] ? env[name] === '1' : fallback);
 
-  if (production && !env.DATABASE_FILE) {
-    throw new Error('DATABASE_FILE must be set in production (point it at a persistent volume, e.g. /data/roamr.db)');
+  const databaseUrl = env.DATABASE_URL?.trim() || null;
+  if (production && !/^postgres(ql)?:\/\//.test(databaseUrl ?? '')) {
+    throw new Error('DATABASE_URL must be set to a postgres:// URL in production');
   }
 
   const port = Number(env.PORT || 3001);
@@ -60,7 +62,8 @@ export function loadConfig(env = process.env) {
   return {
     production,
     port,
-    databaseFile: env.DATABASE_FILE || DEFAULT_DATABASE_FILE,
+    // A postgres:// URL, or a folder for an embedded PGlite database.
+    database: databaseUrl || DEFAULT_DATABASE_DIR,
     // Demo data and demo mode are for local development and demos only.
     // In production both stay off unless explicitly turned on.
     seed: flag('SEED', !production),

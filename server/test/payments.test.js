@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { loadConfig } from '../src/config.js';
-import { migrate, openDb } from '../src/db.js';
 import { createMidtrans, mapMidtransStatus, midtransSignature } from '../src/payments.js';
 import { inHours, startTestApp } from './helpers.js';
 
@@ -56,7 +55,7 @@ async function setupCommunity(t, name) {
   const leader = await t.signup(`${name} Leader`, JAKARTA);
   await leader.post('/api/me/premium');
   const c = await leader.post('/api/communities', { name: `${name} Club`, activityType: 'road_cycling', kind: 'organizer', ...JAKARTA });
-  t.db.prepare("UPDATE communities SET organizer_status = 'approved' WHERE id = ?").run(c.body.community.id);
+  await t.db.prepare("UPDATE communities SET organizer_status = 'approved' WHERE id = ?").run(c.body.community.id);
   return { leader, community: c.body.community };
 }
 
@@ -92,22 +91,9 @@ describe('payment helpers', () => {
     assert.equal(cfg.publicUrl, 'https://roamr.id');
     assert.throws(() => loadConfig({ MIDTRANS_SERVER_KEY: SERVER_KEY, MIDTRANS_PRODUCTION: '1' }), /production server key/);
     assert.throws(
-      () => loadConfig({ NODE_ENV: 'production', DATABASE_FILE: '/data/r.db', MIDTRANS_SERVER_KEY: SERVER_KEY }),
+      () => loadConfig({ NODE_ENV: 'production', DATABASE_URL: 'postgres://roamr@db/roamr', MIDTRANS_SERVER_KEY: SERVER_KEY }),
       /PUBLIC_URL/,
     );
-  });
-
-  test('older databases get the new event columns', () => {
-    const db = openDb(':memory:');
-    db.exec('DROP TABLE event_payments; DROP TABLE event_participants; DROP TABLE events;');
-    db.exec(`CREATE TABLE events (id INTEGER PRIMARY KEY, title TEXT);
-             CREATE TABLE event_participants (event_id INTEGER, user_id INTEGER);`);
-    migrate(db);
-    const cols = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
-    assert.ok(['kind', 'price_idr', 'payment_method', 'payment_email', 'payment_instructions'].every((c) => cols.includes(c)));
-    assert.ok(db.prepare('PRAGMA table_info(event_participants)').all().some((c) => c.name === 'status'));
-    migrate(db); // running twice is harmless
-    db.close();
   });
 });
 
@@ -229,7 +215,7 @@ describe('community and paid events', () => {
     const id = created.body.event.id;
     const slow = await t.signup('Slow');
     const reg = await slow.post(`/api/events/${id}/register`, {});
-    t.db.prepare('UPDATE event_payments SET created_at = ? WHERE id = ?').run(new Date(Date.now() - 73 * 3600e3).toISOString(), reg.body.payment.id);
+    await t.db.prepare('UPDATE event_payments SET created_at = ? WHERE id = ?').run(new Date(Date.now() - 73 * 3600e3).toISOString(), reg.body.payment.id);
     const next = await t.signup('Next');
     assert.equal((await next.post(`/api/events/${id}/register`, {})).status, 200);
     assert.equal((await slow.get(`/api/events/${id}/payment`)).body.payment.status, 'expired');
@@ -341,7 +327,7 @@ describe('paid events through Midtrans', () => {
     const id = created.body.event.id;
     const a = await t.signup('Walked Away');
     const reg = await a.post(`/api/events/${id}/register`, {});
-    t.db.prepare('UPDATE event_payments SET created_at = ? WHERE id = ?').run(new Date(Date.now() - 2 * 3600e3).toISOString(), reg.body.payment.id);
+    await t.db.prepare('UPDATE event_payments SET created_at = ? WHERE id = ?').run(new Date(Date.now() - 2 * 3600e3).toISOString(), reg.body.payment.id);
     const b = await t.signup('Next In Line');
     assert.equal((await b.post(`/api/events/${id}/register`, {})).status, 200);
     // If Midtrans later says it was paid after all, they still get in.

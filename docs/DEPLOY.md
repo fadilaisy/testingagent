@@ -1,5 +1,7 @@
 # Deploying the ROAMR alpha (Vercel + Fly.io)
 
+> **Retired.** ROAMR now runs on AWS with PostgreSQL: see [DEPLOY-AWS.md](DEPLOY-AWS.md). The Fly config below still describes the old SQLite setup (`DATABASE_FILE`); to use Fly again it would need a Postgres database and `DATABASE_URL`. The Google, Resend and Midtrans sections still apply on AWS.
+
 ```
 browser ──► Vercel (roamr.vercel.app or your domain)
               ├─ /assets, /index.html …  static web app (web/dist)

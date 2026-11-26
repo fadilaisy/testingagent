@@ -69,22 +69,21 @@ export function summarizeConditions(reports) {
 export function routesRouter({ db, hub, notifier, weather, places }) {
   const router = Router();
 
-  const getRoute = (id, viewer) => {
-    const r = db.prepare(`${ROUTE_SELECT} WHERE r.id = ?`).get(id);
+  const getRoute = async (id, viewer) => {
+    const r = await db.prepare(`${ROUTE_SELECT} WHERE r.id = ?`).get(id);
     if (!r || (r.hidden && !viewer?.is_admin && viewer?.id !== r.creator_id)) throw new HttpError(404, 'Route not found');
     return r;
   };
 
-  const reportsFor = (routeId, sinceHours = 24 * 7) =>
-    db
-      .prepare(
-        `SELECT t.*, u.name AS user_name FROM track_reports t JOIN users u ON u.id = t.user_id
+  const reportsFor = async (routeId, sinceHours = 24 * 7) => (await db
+    .prepare(
+      `SELECT t.*, u.name AS user_name FROM track_reports t JOIN users u ON u.id = t.user_id
          WHERE t.route_id = ? AND t.created_at > ? ORDER BY t.created_at DESC LIMIT 100`,
-      )
-      .all(routeId, new Date(Date.now() - sinceHours * 3600 * 1000).toISOString())
-      .map(trackReport);
+    )
+    .all(routeId, new Date(Date.now() - sinceHours * 3600 * 1000).toISOString()))
+    .map(trackReport);
 
-  router.get('/routes', (req, res) => {
+  router.get('/routes', async (req, res) => {
     const q = req.query;
     const where = ["r.hidden = 0", "r.visibility = 'public'"];
     const params = [];
@@ -105,11 +104,11 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
       params.push(v.num(q.maxKm, 'Max distance', { min: 0 }) * 1000);
     }
     if (q.q) {
-      where.push('(r.name LIKE ? OR r.location_name LIKE ? OR r.description LIKE ?)');
+      where.push('(r.name ILIKE ? OR r.location_name ILIKE ? OR r.description ILIKE ?)');
       const like = `%${v.text(q.q, 'Search', { max: 80 })}%`;
       params.push(like, like, like);
     }
-    let rows = db.prepare(`${ROUTE_SELECT} WHERE ${where.join(' AND ')} ORDER BY r.created_at DESC LIMIT 500`).all(...params);
+    let rows = await db.prepare(`${ROUTE_SELECT} WHERE ${where.join(' AND ')} ORDER BY r.created_at DESC LIMIT 500`).all(...params);
 
     const lat = v.lat(q.lat, 'Latitude');
     const lng = v.lng(q.lng, 'Longitude');
@@ -134,7 +133,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     res.json({ name, stats, geometry: compactPoints(simplify(points, 500)) });
   });
 
-  router.post('/routes', requireUser, upload.single('gpx'), (req, res) => {
+  router.post('/routes', requireUser, upload.single('gpx'), async (req, res) => {
     const { name: gpxName, points, text: gpxText } = readGpx(req);
     const b = req.body;
     const activityType = v.oneOf(b.activityType, 'Activity', ACTIVITY_KEYS, { required: true });
@@ -152,7 +151,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
       v.oneOf(b.difficulty, 'Difficulty', DIFFICULTIES) ??
       estimateDifficulty(activityType, stats.distanceM, stats.elevationGain);
 
-    const row = db
+    const row = await db
       .prepare(
         `INSERT INTO routes (creator_id, activity_type, name, description, location_name, gpx_text, geometry,
            distance_m, elevation_gain, elevation_loss, max_elevation, est_duration_s, difficulty,
@@ -167,20 +166,20 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
         shown.start[0], shown.start[1], shown.end[0], shown.end[1],
         shown.bbox.minLat, shown.bbox.maxLat, shown.bbox.minLng, shown.bbox.maxLng, privacyTrim, visibility,
       );
-    res.status(201).json({ route: routeSummary(getRoute(row.id, req.user)) });
+    res.status(201).json({ route: routeSummary(await getRoute(row.id, req.user)) });
   });
 
-  router.get('/routes/:id', (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
-    const reports = reportsFor(r.id);
-    const activities = db
+  router.get('/routes/:id', async (req, res) => {
+    const r = await getRoute(v.idParam(req.params.id), req.user);
+    const reports = await reportsFor(r.id);
+    const activities = (await db
       .prepare(
         `${ACTIVITY_SELECT} WHERE a.route_id = ? AND a.status = 'open' AND a.starts_at > ?
            AND (a.visibility = 'public' OR a.creator_id = ? OR EXISTS (
              SELECT 1 FROM activity_participants p WHERE p.activity_id = a.id AND p.user_id = ?))
          ORDER BY a.starts_at LIMIT 20`,
       )
-      .all(req.user?.id ?? 0, r.id, new Date(Date.now() - 2 * 3600 * 1000).toISOString(), req.user?.id ?? 0, req.user?.id ?? 0)
+      .all(req.user?.id ?? 0, r.id, new Date(Date.now() - 2 * 3600 * 1000).toISOString(), req.user?.id ?? 0, req.user?.id ?? 0))
       .map(activitySummary);
     const conditions = summarizeConditions(reports);
     if (r.flagged_unsafe) {
@@ -203,8 +202,8 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     });
   });
 
-  router.get('/routes/:id/gpx', (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
+  router.get('/routes/:id/gpx', async (req, res) => {
+    const r = await getRoute(v.idParam(req.params.id), req.user);
     const body = req.user?.id === r.creator_id ? r.gpx_text : toGpx(r.name, JSON.parse(r.geometry));
     const filename = r.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || `route-${r.id}`;
     res.set('content-type', 'application/gpx+xml');
@@ -212,23 +211,23 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     res.send(body);
   });
 
-  router.delete('/routes/:id', requireUser, (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
+  router.delete('/routes/:id', requireUser, async (req, res) => {
+    const r = await getRoute(v.idParam(req.params.id), req.user);
     if (r.creator_id !== req.user.id && !req.user.is_admin) throw new HttpError(403, 'Only the creator can delete this route');
-    const others = db
+    const others = (await db
       .prepare(
         `SELECT COUNT(*) AS n FROM activity_plans WHERE route_id = ? AND creator_id != ? AND status = 'open' AND starts_at > ?`,
       )
-      .get(r.id, r.creator_id, new Date().toISOString()).n;
+      .get(r.id, r.creator_id, new Date().toISOString())).n;
     if (others > 0 && !req.user.is_admin) {
       throw new HttpError(409, 'Other people have upcoming activities on this route, so it cannot be deleted');
     }
-    db.prepare('DELETE FROM routes WHERE id = ?').run(r.id);
+    await db.prepare('DELETE FROM routes WHERE id = ?').run(r.id);
     res.json({ ok: true });
   });
 
   router.get('/routes/:id/weather', async (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
+    const r = await getRoute(v.idParam(req.params.id), req.user);
     const startsAt = v.isoDate(req.query.startsAt, 'Start time');
     try {
       const data = await routeWeather(weather, {
@@ -245,7 +244,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
   });
 
   router.get('/routes/:id/places', async (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
+    const r = await getRoute(v.idParam(req.params.id), req.user);
     const near = v.oneOf(req.query.near ?? 'finish', 'Near', ['start', 'finish']);
     const categories = req.query.category
       ? String(req.query.category).split(',').filter((c) => Object.hasOwn(PLACE_CATEGORIES, c))
@@ -255,14 +254,14 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     res.json(await places.nearby({ lat, lng, radiusM, activityType: r.activity_type, categories }));
   });
 
-  router.get('/routes/:id/conditions', (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
-    const reports = reportsFor(r.id);
+  router.get('/routes/:id/conditions', async (req, res) => {
+    const r = await getRoute(v.idParam(req.params.id), req.user);
+    const reports = await reportsFor(r.id);
     res.json({ reports, conditions: summarizeConditions(reports) });
   });
 
-  router.post('/routes/:id/conditions', requireUser, (req, res) => {
-    const r = getRoute(v.idParam(req.params.id), req.user);
+  router.post('/routes/:id/conditions', requireUser, async (req, res) => {
+    const r = await getRoute(v.idParam(req.params.id), req.user);
     const b = req.body;
     const category = v.oneOf(b.category, 'Category', Object.keys(CONDITION_CATEGORIES), { required: true });
     const value = v.oneOf(b.value, 'Condition', Object.keys(CONDITION_CATEGORIES[category].values), { required: true });
@@ -270,13 +269,13 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     const description = v.text(b.description, 'Description', { max: 280 });
     const activityId = v.int(b.activityId, 'Activity', { min: 1 });
 
-    const recentCount = db
+    const recentCount = (await db
       .prepare('SELECT COUNT(*) AS n FROM track_reports WHERE user_id = ? AND created_at > ?')
-      .get(req.user.id, new Date(Date.now() - 3600 * 1000).toISOString()).n;
+      .get(req.user.id, new Date(Date.now() - 3600 * 1000).toISOString())).n;
     if (recentCount >= REPORTS_PER_HOUR) throw new HttpError(429, 'You have sent a lot of reports; try again later');
 
     if (activityId) {
-      const member = db
+      const member = await db
         .prepare(
           `SELECT 1 FROM activity_participants p JOIN activity_plans a ON a.id = p.activity_id
            WHERE p.activity_id = ? AND p.user_id = ? AND p.status = 'joined' AND a.route_id = ?`,
@@ -285,8 +284,8 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
       if (!member) throw new HttpError(403, 'You can only report into activities you joined on this route');
     }
 
-    const { report, message } = transaction(db, () => {
-      const t = db
+    const { report, message } = await transaction(db, async (db) => {
+      const t = await db
         .prepare(
           `INSERT INTO track_reports (route_id, user_id, activity_id, category, value, km, description)
            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
@@ -296,7 +295,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
       let message = null;
       if (activityId) {
         const text = `${CONDITION_CATEGORIES[category].label}: ${value.replace('_', ' ')}${km != null ? ` at KM ${km}` : ''}${description ? ` — ${description}` : ''}`;
-        const m = db
+        const m = await db
           .prepare(
             `INSERT INTO chat_messages (activity_id, user_id, kind, body, data) VALUES (?, ?, 'condition', ?, ?) RETURNING *`,
           )
@@ -307,15 +306,15 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     });
 
     if (message) {
-      const members = db
+      const members = (await db
         .prepare("SELECT user_id FROM activity_participants WHERE activity_id = ? AND status = 'joined'")
-        .all(activityId)
+        .all(activityId))
         .map((m) => m.user_id);
       hub.send(members, 'chat', message);
     }
 
     // Tell people with an activity on this route in the next 48 hours.
-    const soon = db
+    const soon = await db
       .prepare(
         `SELECT DISTINCT p.user_id, a.id AS activity_id, a.title FROM activity_participants p
          JOIN activity_plans a ON a.id = p.activity_id
@@ -327,7 +326,7 @@ export function routesRouter({ db, hub, notifier, weather, places }) {
     for (const s of soon) {
       if (seen.has(s.user_id)) continue;
       seen.add(s.user_id);
-      notifier.notify(s.user_id, {
+      await notifier.notify(s.user_id, {
         type: 'track_update',
         title: `New condition on ${r.name}`,
         body: `${report.categoryLabel}: ${value.replace('_', ' ')}${km != null ? ` at KM ${km}` : ''}`,

@@ -14,7 +14,6 @@ RUN npm run build && npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV PORT=3001
-ENV DATABASE_FILE=/data/jalur.db
 
 EXPOSE 3001
 CMD ["npm", "start"]

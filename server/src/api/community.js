@@ -30,23 +30,22 @@ export const FREE_UPCOMING_EVENT_LIMIT = 2;
 export function communityRouter({ db, notifier, payments, eventPayments }) {
   const router = Router();
 
-  const loadCommunity = (id, viewerId = 0) => {
-    const c = db.prepare(`${COMMUNITY_SELECT} WHERE c.id = ?`).get(viewerId, viewerId, id);
+  const loadCommunity = async (id, viewerId = 0) => {
+    const c = await db.prepare(`${COMMUNITY_SELECT} WHERE c.id = ?`).get(viewerId, viewerId, id);
     if (!c || c.hidden) throw new HttpError(404, 'Community not found');
     return c;
   };
   const isMember = (c) => c.my_status === 'member';
   const isAdmin = (c) => isMember(c) && c.my_role === 'admin';
 
-  const memberIds = (communityId) =>
-    db
-      .prepare("SELECT user_id FROM community_members WHERE community_id = ? AND status = 'member'")
-      .all(communityId)
-      .map((r) => r.user_id);
+  const memberIds = async (communityId) => (await db
+    .prepare("SELECT user_id FROM community_members WHERE community_id = ? AND status = 'member'")
+    .all(communityId))
+    .map((r) => r.user_id);
 
   // ---- Communities -------------------------------------------------------
 
-  router.get('/communities', (req, res) => {
+  router.get('/communities', async (req, res) => {
     const q = req.query;
     const viewerId = req.user?.id ?? 0;
     const where = ['c.hidden = 0'];
@@ -65,10 +64,10 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     }
     if (q.q) {
       const like = `%${v.text(q.q, 'Search', { max: 80 })}%`;
-      where.push('(c.name LIKE ? OR c.description LIKE ? OR c.location_name LIKE ?)');
+      where.push('(c.name ILIKE ? OR c.description ILIKE ? OR c.location_name ILIKE ?)');
       params.push(like, like, like);
     }
-    const rows = db.prepare(`${COMMUNITY_SELECT} WHERE ${where.join(' AND ')} LIMIT 300`).all(...params);
+    const rows = await db.prepare(`${COMMUNITY_SELECT} WHERE ${where.join(' AND ')} LIMIT 300`).all(...params);
     const lat = v.lat(q.lat, 'Latitude');
     const lng = v.lng(q.lng, 'Longitude');
     if (q.sort === 'nearby' && lat != null && lng != null) {
@@ -81,18 +80,18 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     res.json({ communities: rows.slice(0, limit).map(communitySummary) });
   });
 
-  router.post('/communities', requireUser, (req, res) => {
-    if (!isPremium(db, req.user.id)) {
+  router.post('/communities', requireUser, async (req, res) => {
+    if (!(await isPremium(db, req.user.id))) {
       throw new HttpError(402, 'Creating a community needs the Premium Community Creator plan', { premiumRequired: true });
     }
     const b = req.body;
     const name = v.text(b.name, 'Name', { max: 80, required: true });
-    if (db.prepare('SELECT 1 FROM communities WHERE name = ? COLLATE NOCASE AND hidden = 0').get(name)) {
+    if (await db.prepare('SELECT 1 FROM communities WHERE lower(name) = lower(?) AND hidden = 0').get(name)) {
       throw new HttpError(409, 'A community with this name already exists', { field: 'Name' });
     }
     const kind = v.oneOf(b.kind ?? 'community', 'Type', COMMUNITY_KINDS);
-    const id = transaction(db, () => {
-      const { id } = db
+    const id = await transaction(db, async (db) => {
+      const { id } = await db
         .prepare(
           `INSERT INTO communities (owner_id, name, description, activity_type, location_name, lat, lng, rules, privacy, kind, organizer_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
@@ -104,45 +103,45 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
           v.text(b.rules, 'Rules', { max: 2000 }), v.oneOf(b.privacy ?? 'public', 'Privacy', ['public', 'private']),
           kind, kind === 'organizer' ? 'pending' : null,
         );
-      db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'admin', 'member')").run(id, req.user.id);
+      await db.prepare("INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, 'admin', 'member')").run(id, req.user.id);
       return id;
     });
     if (kind === 'organizer') {
-      const admins = db.prepare('SELECT id FROM users WHERE is_admin = 1 AND suspended = 0').all().map((u) => u.id);
-      notifier.notifyMany(admins, {
+      const admins = (await db.prepare('SELECT id FROM users WHERE is_admin = 1 AND suspended = 0').all()).map((u) => u.id);
+      await notifier.notifyMany(admins, {
         type: 'community',
         title: `${name} wants to sell paid events`,
         body: 'Review the organizer in the admin page.',
         link: '/admin',
       });
     }
-    res.status(201).json({ community: communitySummary(loadCommunity(id, req.user.id)) });
+    res.status(201).json({ community: communitySummary(await loadCommunity(id, req.user.id)) });
   });
 
-  router.get('/communities/:id', (req, res) => {
+  router.get('/communities/:id', async (req, res) => {
     const viewerId = req.user?.id ?? 0;
-    const c = loadCommunity(v.idParam(req.params.id), viewerId);
+    const c = await loadCommunity(v.idParam(req.params.id), viewerId);
     const canSeeInside = c.privacy === 'public' || isMember(c);
-    const admins = db
+    const admins = await db
       .prepare(
         `SELECT u.id, u.name FROM community_members m JOIN users u ON u.id = m.user_id
          WHERE m.community_id = ? AND m.role = 'admin' AND m.status = 'member'`,
       )
       .all(c.id);
     const events = canSeeInside
-      ? db
+      ? (await db
           .prepare(`${EVENT_SELECT} WHERE e.community_id = ? AND e.hidden = 0 AND e.starts_at > ? ORDER BY e.starts_at LIMIT 20`)
-          .all(viewerId, c.id, new Date(Date.now() - 6 * 3600 * 1000).toISOString())
+          .all(viewerId, c.id, new Date(Date.now() - 6 * 3600 * 1000).toISOString()))
           .map(eventSummary)
       : [];
     const pastEvents = canSeeInside
-      ? db
+      ? (await db
           .prepare(`${EVENT_SELECT} WHERE e.community_id = ? AND e.hidden = 0 AND e.starts_at <= ? ORDER BY e.starts_at DESC LIMIT 10`)
-          .all(viewerId, c.id, new Date(Date.now() - 6 * 3600 * 1000).toISOString())
+          .all(viewerId, c.id, new Date(Date.now() - 6 * 3600 * 1000).toISOString()))
           .map(eventSummary)
       : [];
     const members = canSeeInside
-      ? db
+      ? await db
           .prepare(
             `SELECT u.id, u.name, m.role FROM community_members m JOIN users u ON u.id = m.user_id
              WHERE m.community_id = ? AND m.status = 'member' ORDER BY m.role = 'admin' DESC, m.joined_at LIMIT 24`,
@@ -150,14 +149,14 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
           .all(c.id)
       : [];
     const requests = isAdmin(c)
-      ? db
+      ? await db
           .prepare(
             `SELECT u.id, u.name, m.joined_at AS requestedAt FROM community_members m JOIN users u ON u.id = m.user_id
              WHERE m.community_id = ? AND m.status = 'requested'`,
           )
           .all(c.id)
       : [];
-    const ownerPremium = isPremium(db, c.owner_id);
+    const ownerPremium = await isPremium(db, c.owner_id);
     res.json({
       community: {
         ...communitySummary(c),
@@ -174,15 +173,15 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     });
   });
 
-  router.post('/communities/:id/join', requireUser, (req, res) => {
-    const c = loadCommunity(v.idParam(req.params.id), req.user.id);
+  router.post('/communities/:id/join', requireUser, async (req, res) => {
+    const c = await loadCommunity(v.idParam(req.params.id), req.user.id);
     if (c.my_status) return res.json({ status: c.my_status });
     const status = c.privacy === 'private' ? 'requested' : 'member';
-    db.prepare('INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, ?, ?)').run(
+    await db.prepare('INSERT INTO community_members (community_id, user_id, role, status) VALUES (?, ?, ?, ?)').run(
       c.id, req.user.id, 'member', status,
     );
     if (status === 'requested') {
-      notifier.notify(c.owner_id, {
+      await notifier.notify(c.owner_id, {
         type: 'community',
         title: `${req.user.name} asked to join ${c.name}`,
         link: `/communities/${c.id}`,
@@ -191,47 +190,47 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     res.json({ status });
   });
 
-  router.post('/communities/:id/leave', requireUser, (req, res) => {
-    const c = loadCommunity(v.idParam(req.params.id), req.user.id);
+  router.post('/communities/:id/leave', requireUser, async (req, res) => {
+    const c = await loadCommunity(v.idParam(req.params.id), req.user.id);
     if (c.owner_id === req.user.id) throw new HttpError(409, 'The owner cannot leave their own community');
-    db.prepare('DELETE FROM community_members WHERE community_id = ? AND user_id = ?').run(c.id, req.user.id);
+    await db.prepare('DELETE FROM community_members WHERE community_id = ? AND user_id = ?').run(c.id, req.user.id);
     res.json({ status: null });
   });
 
-  router.post('/communities/:id/members/:userId/:action', requireUser, (req, res) => {
-    const c = loadCommunity(v.idParam(req.params.id), req.user.id);
+  router.post('/communities/:id/members/:userId/:action', requireUser, async (req, res) => {
+    const c = await loadCommunity(v.idParam(req.params.id), req.user.id);
     if (!isAdmin(c)) throw new HttpError(403, 'Only community admins can manage members');
     const userId = v.idParam(req.params.userId);
     const action = v.oneOf(req.params.action, 'Action', ['approve', 'remove', 'promote', 'demote'], { required: true });
-    const m = db.prepare('SELECT * FROM community_members WHERE community_id = ? AND user_id = ?').get(c.id, userId);
+    const m = await db.prepare('SELECT * FROM community_members WHERE community_id = ? AND user_id = ?').get(c.id, userId);
     if (!m) throw new HttpError(404, 'Member not found');
     if (userId === c.owner_id) throw new HttpError(409, 'The owner cannot be changed here');
     if ((action === 'promote' || action === 'demote') && req.user.id !== c.owner_id) {
       throw new HttpError(403, 'Only the owner can change admin roles');
     }
     if (action === 'approve') {
-      db.prepare("UPDATE community_members SET status = 'member' WHERE community_id = ? AND user_id = ?").run(c.id, userId);
-      notifier.notify(userId, { type: 'community', title: `Welcome to ${c.name}`, link: `/communities/${c.id}` });
+      await db.prepare("UPDATE community_members SET status = 'member' WHERE community_id = ? AND user_id = ?").run(c.id, userId);
+      await notifier.notify(userId, { type: 'community', title: `Welcome to ${c.name}`, link: `/communities/${c.id}` });
     } else if (action === 'remove') {
-      db.prepare('DELETE FROM community_members WHERE community_id = ? AND user_id = ?').run(c.id, userId);
+      await db.prepare('DELETE FROM community_members WHERE community_id = ? AND user_id = ?').run(c.id, userId);
     } else {
-      db.prepare('UPDATE community_members SET role = ? WHERE community_id = ? AND user_id = ?').run(
+      await db.prepare('UPDATE community_members SET role = ? WHERE community_id = ? AND user_id = ?').run(
         action === 'promote' ? 'admin' : 'member', c.id, userId,
       );
     }
     res.json({ ok: true });
   });
 
-  router.post('/communities/:id/announcements', requireUser, (req, res) => {
-    const c = loadCommunity(v.idParam(req.params.id), req.user.id);
+  router.post('/communities/:id/announcements', requireUser, async (req, res) => {
+    const c = await loadCommunity(v.idParam(req.params.id), req.user.id);
     if (!isAdmin(c)) throw new HttpError(403, 'Only community admins can send announcements');
-    if (!isPremium(db, c.owner_id)) {
+    if (!(await isPremium(db, c.owner_id))) {
       throw new HttpError(402, 'Announcements need the Premium Community Creator plan', { premiumRequired: true });
     }
     const title = v.text(req.body.title, 'Title', { max: 100, required: true });
     const body = v.text(req.body.body, 'Message', { max: 500 });
-    const sent = notifier.notifyMany(
-      memberIds(c.id).filter((id) => id !== req.user.id),
+    const sent = await notifier.notifyMany(
+      (await memberIds(c.id)).filter((id) => id !== req.user.id),
       { type: 'community', title: `${c.name}: ${title}`, body, link: `/communities/${c.id}` },
     );
     res.json({ sent });
@@ -242,13 +241,13 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
   const visibleEventWhere = `e.hidden = 0 AND c.hidden = 0 AND (c.privacy = 'public' OR EXISTS (
     SELECT 1 FROM community_members m WHERE m.community_id = c.id AND m.user_id = ? AND m.status = 'member'))`;
 
-  const loadEvent = (id, viewerId = 0) => {
-    const e = db.prepare(`${EVENT_SELECT} WHERE e.id = ? AND ${visibleEventWhere}`).get(viewerId, id, viewerId);
+  const loadEvent = async (id, viewerId = 0) => {
+    const e = await db.prepare(`${EVENT_SELECT} WHERE e.id = ? AND ${visibleEventWhere}`).get(viewerId, id, viewerId);
     if (!e) throw new HttpError(404, 'Event not found');
     return e;
   };
 
-  router.get('/events', (req, res) => {
+  router.get('/events', async (req, res) => {
     const q = req.query;
     const viewerId = req.user?.id ?? 0;
     const where = [visibleEventWhere, 'e.starts_at > ?'];
@@ -277,7 +276,7 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
       where.push('EXISTS (SELECT 1 FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ?)');
       params.push(viewerId);
     }
-    let rows = db.prepare(`${EVENT_SELECT} WHERE ${where.join(' AND ')} ORDER BY e.starts_at LIMIT 300`).all(...params);
+    let rows = await db.prepare(`${EVENT_SELECT} WHERE ${where.join(' AND ')} ORDER BY e.starts_at LIMIT 300`).all(...params);
     const lat = v.lat(q.lat, 'Latitude');
     const lng = v.lng(q.lng, 'Longitude');
     if (lat != null && lng != null) {
@@ -289,14 +288,14 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     res.json({ events: rows.slice(0, limit).map(eventSummary), total: rows.length });
   });
 
-  router.post('/events', requireUser, (req, res) => {
+  router.post('/events', requireUser, async (req, res) => {
     const b = req.body;
-    const c = loadCommunity(v.int(b.communityId, 'Community', { min: 1, required: true }), req.user.id);
+    const c = await loadCommunity(v.int(b.communityId, 'Community', { min: 1, required: true }), req.user.id);
     if (!isAdmin(c)) throw new HttpError(403, 'Only community admins can create events');
-    const premium = isPremium(db, c.owner_id);
+    const premium = await isPremium(db, c.owner_id);
 
     const routeId = v.int(b.routeId, 'Route', { min: 1 });
-    const route = routeId ? db.prepare('SELECT * FROM routes WHERE id = ? AND hidden = 0').get(routeId) : null;
+    const route = routeId ? await db.prepare('SELECT * FROM routes WHERE id = ? AND hidden = 0').get(routeId) : null;
     if (routeId && !route) throw new HttpError(400, 'Route not found', { field: 'Route' });
     const lat = v.lat(b.lat, 'Latitude') ?? route?.start_lat;
     const lng = v.lng(b.lng, 'Longitude') ?? route?.start_lng;
@@ -339,15 +338,15 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
       }
     }
     if (!premium) {
-      const upcoming = db
+      const upcoming = (await db
         .prepare('SELECT COUNT(*) AS n FROM events WHERE community_id = ? AND hidden = 0 AND starts_at > ?')
-        .get(c.id, new Date().toISOString()).n;
+        .get(c.id, new Date().toISOString())).n;
       if (upcoming >= FREE_UPCOMING_EVENT_LIMIT) {
         throw new HttpError(402, `Without premium a community can have ${FREE_UPCOMING_EVENT_LIMIT} upcoming events`, { premiumRequired: true });
       }
     }
 
-    const e = db
+    const e = await db
       .prepare(
         `INSERT INTO events (community_id, route_id, created_by, title, description, cover_url, activity_type, starts_at,
            ends_at, meeting_point, lat, lng, max_participants, difficulty, pace, notification_radius_km,
@@ -365,8 +364,8 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
         kind, paid.price, paid.method, paid.email, paid.instructions, JSON.stringify(perks),
       );
 
-    const members = memberIds(c.id).filter((id) => id !== req.user.id);
-    notifier.notifyMany(members, {
+    const members = (await memberIds(c.id)).filter((id) => id !== req.user.id);
+    await notifier.notifyMany(members, {
       type: 'community',
       title: `New event from ${c.name}`,
       body: e.title,
@@ -376,25 +375,25 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
     // people who already heard about it as members.
     const notified =
       radius && c.privacy === 'public'
-        ? notifier.notifyNearbyEvent(e, { excludeUserIds: [req.user.id, ...members] })
+        ? await notifier.notifyNearbyEvent(e, { excludeUserIds: [req.user.id, ...members] })
         : 0;
-    db.prepare('UPDATE events SET notified_count = ? WHERE id = ?').run(notified, e.id);
-    db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(e.id, req.user.id);
-    res.status(201).json({ event: eventSummary(loadEvent(e.id, req.user.id)), notifiedNearby: notified, notifiedMembers: members.length });
+    await db.prepare('UPDATE events SET notified_count = ? WHERE id = ?').run(notified, e.id);
+    await db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(e.id, req.user.id);
+    res.status(201).json({ event: eventSummary(await loadEvent(e.id, req.user.id)), notifiedNearby: notified, notifiedMembers: members.length });
   });
 
-  router.get('/events/:id', (req, res) => {
+  router.get('/events/:id', async (req, res) => {
     const viewerId = req.user?.id ?? 0;
-    const e = loadEvent(v.idParam(req.params.id), viewerId);
-    const c = loadCommunity(e.community_id, viewerId);
-    const route = e.route_id ? db.prepare(`${ROUTE_SELECT} WHERE r.id = ?`).get(e.route_id) : null;
-    const participants = db
+    const e = await loadEvent(v.idParam(req.params.id), viewerId);
+    const c = await loadCommunity(e.community_id, viewerId);
+    const route = e.route_id ? await db.prepare(`${ROUTE_SELECT} WHERE r.id = ?`).get(e.route_id) : null;
+    const participants = await db
       .prepare(
         `SELECT u.id, u.name FROM event_participants p JOIN users u ON u.id = p.user_id
          WHERE p.event_id = ? AND p.status = 'confirmed' ORDER BY p.created_at LIMIT 50`,
       )
       .all(e.id);
-    const myPayment = e.kind === 'paid' && viewerId ? eventPayments.latestPayment(e.id, viewerId) : null;
+    const myPayment = e.kind === 'paid' && viewerId ? await eventPayments.latestPayment(e.id, viewerId) : null;
     res.json({
       event: {
         ...eventSummary(e),
@@ -411,38 +410,40 @@ export function communityRouter({ db, notifier, payments, eventPayments }) {
   });
 
   router.post('/events/:id/register', requireUser, async (req, res) => {
-    const e = loadEvent(v.idParam(req.params.id), req.user.id);
+    const e = await loadEvent(v.idParam(req.params.id), req.user.id);
     if (Date.parse(e.starts_at) < Date.now()) throw new HttpError(409, 'This event has already started');
     if (e.kind === 'paid') {
-      const user = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(req.user.id);
+      const user = await db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(req.user.id);
       const note = v.text(req.body?.note, 'Payment details', { max: 300 });
       const payment = await eventPayments.register(e, user, { note });
-      return res.json({ event: eventSummary(loadEvent(e.id, req.user.id)), payment: payment ? paymentSummary(payment, e) : null });
+      return res.json({ event: eventSummary(await loadEvent(e.id, req.user.id)), payment: payment ? paymentSummary(payment, e) : null });
     }
     if (!e.my_status) {
-      transaction(db, () => {
-        const n = db.prepare('SELECT COUNT(*) AS n FROM event_participants WHERE event_id = ?').get(e.id).n;
+      await transaction(db, async (db) => {
+        // Locks the event so concurrent registrations wait their turn here.
+        await db.prepare('SELECT 1 FROM events WHERE id = ? FOR UPDATE').get(e.id);
+        const n = (await db.prepare('SELECT COUNT(*) AS n FROM event_participants WHERE event_id = ?').get(e.id)).n;
         if (e.max_participants && n >= e.max_participants) throw new HttpError(409, 'This event is full');
-        db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(e.id, req.user.id);
+        await db.prepare('INSERT INTO event_participants (event_id, user_id) VALUES (?, ?)').run(e.id, req.user.id);
       });
     }
-    res.json({ event: eventSummary(loadEvent(e.id, req.user.id)) });
+    res.json({ event: eventSummary(await loadEvent(e.id, req.user.id)) });
   });
 
-  router.post('/events/:id/unregister', requireUser, (req, res) => {
-    const e = loadEvent(v.idParam(req.params.id), req.user.id);
+  router.post('/events/:id/unregister', requireUser, async (req, res) => {
+    const e = await loadEvent(v.idParam(req.params.id), req.user.id);
     if (e.kind === 'paid' && e.my_status) {
-      const p = eventPayments.latestPayment(e.id, req.user.id);
+      const p = await eventPayments.latestPayment(e.id, req.user.id);
       if (e.my_status === 'confirmed' && e.created_by !== req.user.id) {
         throw new HttpError(409, 'Paid registrations can only be cancelled by the organizer. Contact them about a refund.');
       }
       if (p?.status === 'pending') {
-        eventPayments.setStatus(p, 'cancelled', { quiet: true });
-        return res.json({ event: eventSummary(loadEvent(e.id, req.user.id)) });
+        await eventPayments.setStatus(p, 'cancelled', { quiet: true });
+        return res.json({ event: eventSummary(await loadEvent(e.id, req.user.id)) });
       }
     }
-    db.prepare('DELETE FROM event_participants WHERE event_id = ? AND user_id = ?').run(e.id, req.user.id);
-    res.json({ event: eventSummary(loadEvent(e.id, req.user.id)) });
+    await db.prepare('DELETE FROM event_participants WHERE event_id = ? AND user_id = ?').run(e.id, req.user.id);
+    res.json({ event: eventSummary(await loadEvent(e.id, req.user.id)) });
   });
 
   return router;

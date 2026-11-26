@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { migrate, openDb } from '../src/db.js';
 import { inHours, startTestApp } from './helpers.js';
 
 const JAKARTA = { locationName: 'Jakarta Selatan', lat: -6.2615, lng: 106.8106 };
@@ -92,15 +91,4 @@ describe('organizer profiles and paid events', () => {
     const rejected = await admin.get('/api/admin/organizers?status=rejected');
     assert.deepEqual(rejected.body.organizers.map((o) => o.id), [other.id]);
   });
-});
-
-test('older databases get the organizer and perks columns', () => {
-  const db = openDb(':memory:');
-  db.exec('PRAGMA foreign_keys = OFF; DROP TABLE communities; DROP TABLE events;');
-  db.exec('CREATE TABLE communities (id INTEGER PRIMARY KEY, name TEXT); CREATE TABLE events (id INTEGER PRIMARY KEY, title TEXT);');
-  db.exec("INSERT INTO communities (name) VALUES ('Old Club'); INSERT INTO events (title) VALUES ('Old Ride');");
-  migrate(db);
-  assert.deepEqual({ ...db.prepare('SELECT kind, organizer_status FROM communities').get() }, { kind: 'community', organizer_status: null });
-  assert.equal(db.prepare('SELECT perks FROM events').get().perks, '[]');
-  db.close();
 });

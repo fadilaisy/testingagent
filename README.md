@@ -10,7 +10,7 @@ To change the app name, edit `server/src/app.js` (`appName`), `web/index.html` a
 
 ## Quick start
 
-Requires Node.js 22.13 or newer (it uses the built-in `node:sqlite`, so there is no database to install).
+Requires Node.js 22.13 or newer. There is no database to install: locally the server runs Postgres in-process with [PGlite](https://pglite.dev) (Postgres compiled to WebAssembly); production uses a real PostgreSQL server.
 
 ```bash
 npm install
@@ -19,7 +19,7 @@ npm run dev
 
 Open http://localhost:5173. The API runs on port 3001, and Vite proxies `/api` to it.
 
-On first start the database (`server/data/roamr.db`) is created and filled with demo data around Jakarta, Bogor, Sentul and Puncak. Every demo account uses the password `password123`:
+On first start the database (`server/data/pglite/`) is created and filled with demo data around Jakarta, Bogor, Sentul and Puncak. Every demo account uses the password `password123`:
 
 | Account | Role |
 |---|---|
@@ -43,18 +43,18 @@ npm start         # serve API + built web app on port 3001
 
 ```bash
 npm install && npm run build
-NODE_ENV=production DATABASE_FILE=/var/lib/roamr/roamr.db npm start
+NODE_ENV=production DATABASE_URL=postgres://roamr:password@localhost:5432/roamr npm start
 ```
 
-In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. The alpha runs the web app on Vercel and the server on Fly.io (`web/vercel.json`, `fly.toml`, `Dockerfile`); see [docs/DEPLOY.md](docs/DEPLOY.md) for the guide and `.env.example` for a template.
+In production the server also serves `web/dist`. Run it behind HTTPS: session cookies are `Secure` in production. The alpha runs on one AWS Lightsail server with Postgres next to the app (`deploy/aws/`); see [docs/DEPLOY-AWS.md](docs/DEPLOY-AWS.md) for the guide and `.env.example` for a template. The earlier Vercel + Fly.io setup is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 Settings are environment variables; [`.env.example`](.env.example) lists every one the server reads. To use them locally, copy it to `.env` in the repo root and fill in what you need (empty means default or off): `npm run dev`, `npm start` and `npm run seed` load `.env` when it exists, and variables set in the shell take precedence. `.env` is git-ignored. The web app reads no environment variables.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `NODE_ENV` | unset | `production` turns on Secure cookies, requires `DATABASE_FILE` and turns off demo data and demo mode |
+| `NODE_ENV` | unset | `production` turns on Secure cookies, requires a `postgres://` `DATABASE_URL` and turns off demo data and demo mode |
 | `PORT` | `3001` | HTTP port |
-| `DATABASE_FILE` | `server/data/roamr.db`; **required** in production | SQLite file |
+| `DATABASE_URL` | `server/data/pglite`; a `postgres://` URL is **required** in production | PostgreSQL connection URL, or a folder for an embedded PGlite database |
 | `DEMO_MODE` | on in development, off in production | Relaxes the check-in time window and adds a "check in at the meeting point" button |
 | `SEED` | on in development, off in production | `1` loads demo data on an empty database, `0` skips it. Production refuses to start on a database with demo accounts unless `SEED=1` |
 | `TRUST_PROXY` | unset | Express `trust proxy` setting when behind a load balancer (`1` = one hop) |
@@ -112,7 +112,8 @@ Mapped to the PRD's MVP table (§34):
 ```
 server/            Express 5 API (ES modules)
   src/app.js       app factory; providers are injectable for tests
-  src/db.js        SQLite schema (node:sqlite)
+  src/db.js        Postgres schema and the small async query layer (pg / PGlite)
+  src/migrate-sqlite.js  one-time copy of an old SQLite database into Postgres
   src/geo.js       haversine, bounding boxes, privacy trimming
   src/gpx.js       GPX parsing and route statistics
   src/weather.js   Open-Meteo client and route weather
@@ -131,7 +132,7 @@ web/               React 19 + Vite + React Router + Leaflet
   src/components/  map, elevation chart, chat, weather, conditions, places…
 ```
 
-**Database.** SQLite keeps the MVP zero-setup. Geo queries prefilter with a bounding box and then filter by exact distance in JavaScript; all of that lives in `geo.js` and the routers' list queries. The PRD's PostgreSQL + PostGIS target is the natural next step once data grows; the tables already follow the PRD's entities (§44).
+**Database.** PostgreSQL, as the PRD specifies. Locally and in tests the same schema runs in PGlite, so `npm run dev` and `npm test` still need no database server. Queries are plain SQL with `?` placeholders through `db.prepare(sql).get/all/run`, all async. Geo queries prefilter with a bounding box and then filter by exact distance in JavaScript (`geo.js`); PostGIS can take that over later without changing the tables, which follow the PRD's entities (§44). Timestamps are stored as ISO-8601 text.
 
 **Realtime.** Clients send with plain POSTs and receive chat messages and notifications over a single SSE stream per tab (`/api/stream`). This works behind most proxies without WebSocket configuration. A multi-server deployment would need a shared pub/sub (for example Redis) behind `realtime.js`.
 

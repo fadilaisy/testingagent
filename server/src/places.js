@@ -79,11 +79,11 @@ export function createPlacesProvider({ db, fetchImpl = fetch, overpassUrl = 'htt
       .filter(Boolean);
   }
 
-  function fromLocal(lat, lng, radiusM) {
+  async function fromLocal(lat, lng, radiusM) {
     const b = boundingBox(lat, lng, radiusM);
-    return db
+    return (await db
       .prepare('SELECT * FROM places WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?')
-      .all(b.minLat, b.maxLat, b.minLng, b.maxLng)
+      .all(b.minLat, b.maxLat, b.minLng, b.maxLng))
       .map((p) => ({
         id: `local-${p.id}`,
         name: p.name,
@@ -110,7 +110,7 @@ export function createPlacesProvider({ db, fetchImpl = fetch, overpassUrl = 'htt
         cache.set(key, { at: Date.now(), list, source });
       } catch {
         source = 'local';
-        list = fromLocal(lat, lng, radiusM);
+        list = await fromLocal(lat, lng, radiusM);
       }
     }
 

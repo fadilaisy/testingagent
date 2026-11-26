@@ -173,7 +173,7 @@ describe('routes and GPX', () => {
     const w = await t.client().get(`/api/routes/${route.id}/weather?startsAt=${encodeURIComponent(inHours(5))}`);
     assert.equal(w.status, 200);
     assert.equal(w.body.points[0].name, 'Start');
-    t.db.prepare("INSERT INTO places (name, category, lat, lng) VALUES ('Finish Coffee', 'coffee', ?, ?)").run(route.end[0], route.end[1] + 0.001);
+    await t.db.prepare("INSERT INTO places (name, category, lat, lng) VALUES ('Finish Coffee', 'coffee', ?, ?)").run(route.end[0], route.end[1] + 0.001);
     const p = await t.client().get(`/api/routes/${route.id}/places`);
     assert.equal(p.body.source, 'local');
     assert.equal(p.body.places[0].name, 'Finish Coffee');
@@ -231,6 +231,18 @@ describe('activities, chat, conditions and check-in', () => {
     const r = await third.post(`/api/activities/${a.id}/join`);
     assert.equal(r.status, 409);
     assert.match(r.body.error, /full/);
+  });
+
+  test('simultaneous joins cannot take more spots than the limit', async () => {
+    const a = await createActivity(host, route.id, { participantLimit: 3 });
+    const riders = await Promise.all(['R1', 'R2', 'R3', 'R4', 'R5', 'R6'].map((n) => t.signup(n)));
+    const results = await Promise.all(riders.map((c) => c.post(`/api/activities/${a.id}/join`)));
+    assert.equal(results.filter((r) => r.status === 200).length, 2, 'host plus two riders fill the three spots');
+    assert.equal(results.filter((r) => r.status === 409).length, 4);
+    const joined = await t.db
+      .prepare("SELECT COUNT(*) AS n FROM activity_participants WHERE activity_id = ? AND status = 'joined'")
+      .get(a.id);
+    assert.equal(joined.n, 3);
   });
 
   test('private activities need host approval', async () => {
@@ -439,7 +451,7 @@ describe('search, reports and moderation', () => {
   test('global search covers routes, users and places', async () => {
     const u = await t.signup('Puncak Lover');
     await createRoute(u, { name: 'Puncak Climb' });
-    t.db.prepare("INSERT INTO places (name, category, lat, lng) VALUES ('Kopi Puncak', 'coffee', -6.7, 106.99)").run();
+    await t.db.prepare("INSERT INTO places (name, category, lat, lng) VALUES ('Kopi Puncak', 'coffee', -6.7, 106.99)").run();
     const r = await t.client().get('/api/search?q=puncak');
     assert.equal(r.body.routes[0].name, 'Puncak Climb');
     assert.equal(r.body.users[0].name, 'Puncak Lover');
@@ -467,7 +479,7 @@ describe('search, reports and moderation', () => {
 test('demo seed produces a working home feed and a usable demo login', async () => {
   const t = await startTestApp();
   try {
-    seed(t.db);
+    await seed(t.db);
     const kevin = t.client();
     assert.equal((await kevin.post('/api/auth/login', { email: 'kevin@roamr.test', password: 'password123' })).status, 200);
     const home = await kevin.get('/api/home');

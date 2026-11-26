@@ -1,22 +1,47 @@
-# ROAMR (web app + API) on one AWS Lightsail instance (ap-southeast-2, Sydney).
-#   browser -> Caddy (HTTPS, :443) -> app (:3001, serves web/dist and /api)
+# ROAMR (web app + API) and its Postgres database on one AWS Lightsail
+# instance (ap-southeast-2, Sydney).
+#   browser -> Caddy (HTTPS, :443) -> app (:3001, serves web/dist and /api) -> db (Postgres)
 # Run from this folder on the instance: docker compose up -d --build
-# Settings and secrets live in /opt/roamr/.env (see docs/DEPLOY-AWS.md).
+# Settings and secrets live in /opt/roamr/.env and /opt/roamr/postgres.env
+# (see docs/DEPLOY-AWS.md).
 
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    # POSTGRES_PASSWORD; the same password is in DATABASE_URL in /opt/roamr/.env.
+    env_file: /opt/roamr/postgres.env
+    environment:
+      POSTGRES_USER: roamr
+      POSTGRES_DB: roamr
+    # Sized for the 1 GB plan, next to the app and Caddy.
+    command: ['postgres', '-c', 'shared_buffers=64MB', '-c', 'max_connections=30']
+    volumes:
+      - /opt/roamr/postgres:/var/lib/postgresql/data
+    # No ports: only the app reaches the database, over the compose network.
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'roamr', '-d', 'roamr']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: ../..
       dockerfile: Dockerfile
     restart: unless-stopped
+    # DATABASE_URL=postgres://roamr:<password>@db:5432/roamr and the app settings.
     env_file: /opt/roamr/.env
     environment:
       NODE_ENV: production
       PORT: '3001'
-      DATABASE_FILE: /data/roamr.db
       # Browser -> Caddy: one hop before the client IP.
       TRUST_PROXY: '1'
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
+      # Holds the old SQLite file (roamr.db) for the one-time migration.
       - /opt/roamr/data:/data
     expose:
       - '3001'

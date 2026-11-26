@@ -15,20 +15,20 @@ try {
   console.error(`[config] ${err.message}`);
   process.exit(1);
 }
-const { production, port, databaseFile, seed, demoMode } = settings;
+const { production, port, database, seed, demoMode } = settings;
 
-const db = openDb(databaseFile);
-if (seed) seedIfEmpty(db);
+const db = await openDb(database);
+if (seed) await seedIfEmpty(db);
 // Demo accounts share a known password, so a production database that has
 // them (e.g. copied from a laptop) must not go live by accident.
-if (production && !seed && hasDemoData(db)) {
-  console.error('[config] This database contains demo accounts (@roamr.test). Use a fresh DATABASE_FILE, or set SEED=1 for a public demo.');
+if (production && !seed && (await hasDemoData(db))) {
+  console.error('[config] This database contains demo accounts (@roamr.test). Use a fresh database, or set SEED=1 for a public demo.');
   process.exit(1);
 }
 if (production && !settings.email) {
   console.warn('[config] No email provider (RESEND_API_KEY, EMAIL_FROM): password reset links are only written to this log.');
 }
-const promoted = promoteAdmins(db, settings.adminEmails);
+const promoted = await promoteAdmins(db, settings.adminEmails);
 if (promoted) console.log(`Granted admin to ${promoted} account(s) from ADMIN_EMAILS.`);
 
 const app = createApp({

@@ -25,12 +25,12 @@ export function accountRouter({ db, config, mailer }) {
   const router = Router();
   const authLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: config.authRateLimit ?? 30 });
 
-  function startSession(res, userId) {
-    const { token } = createSession(db, userId);
+  async function startSession(res, userId) {
+    const { token } = await createSession(db, userId);
     res.cookie('sid', token, sessionCookieOptions(config.secureCookies));
   }
 
-  router.post('/auth/register', authLimit, (req, res) => {
+  router.post('/auth/register', authLimit, async (req, res) => {
     const email = v.email(req.body.email);
     const password = v.password(req.body.password);
     const name = v.text(req.body.name, 'Name', { max: 60, required: true });
@@ -38,7 +38,7 @@ export function accountRouter({ db, config, mailer }) {
     if (config.signupCode && String(req.body.inviteCode ?? '').trim() !== config.signupCode) {
       throw new HttpError(403, 'This invite code is not valid', { field: 'Invite code' });
     }
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
+    if (await db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
       throw new HttpError(409, 'An account with this email already exists', { field: 'Email' });
     }
     // Admins come from ADMIN_EMAILS when it is set; otherwise the first
@@ -46,27 +46,27 @@ export function accountRouter({ db, config, mailer }) {
     const adminEmails = config.adminEmails ?? [];
     const isAdmin = adminEmails.length
       ? adminEmails.includes(email)
-      : !db.prepare('SELECT 1 FROM users LIMIT 1').get();
-    const user = db
+      : !(await db.prepare('SELECT 1 FROM users LIMIT 1').get());
+    const user = await db
       .prepare('INSERT INTO users (email, password_hash, name, is_admin) VALUES (?, ?, ?, ?) RETURNING *')
       .get(email, hashPassword(password), name, isAdmin ? 1 : 0);
-    startSession(res, user.id);
-    res.status(201).json({ user: me(db, user) });
+    await startSession(res, user.id);
+    res.status(201).json({ user: await me(db, user) });
   });
 
-  router.post('/auth/login', authLimit, (req, res) => {
+  router.post('/auth/login', authLimit, async (req, res) => {
     const email = String(req.body.email ?? '').trim().toLowerCase();
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (!user || !verifyPassword(String(req.body.password ?? ''), user.password_hash)) {
       throw new HttpError(401, 'Email or password is incorrect');
     }
     if (user.suspended) throw new HttpError(403, 'This account is suspended');
-    startSession(res, user.id);
-    res.json({ user: me(db, user) });
+    await startSession(res, user.id);
+    res.json({ user: await me(db, user) });
   });
 
-  router.post('/auth/logout', (req, res) => {
-    destroySession(db, req.cookies?.sid);
+  router.post('/auth/logout', async (req, res) => {
+    await destroySession(db, req.cookies?.sid);
     res.clearCookie('sid', { path: '/' });
     res.json({ ok: true });
   });
@@ -77,10 +77,10 @@ export function accountRouter({ db, config, mailer }) {
   // tried. The answer is the same whether or not the account exists.
   router.post('/auth/forgot', authLimit, async (req, res) => {
     const email = String(req.body.email ?? '').trim().toLowerCase();
-    const user = db.prepare('SELECT id, name, email FROM users WHERE email = ? AND suspended = 0').get(email);
+    const user = await db.prepare('SELECT id, name, email FROM users WHERE email = ? AND suspended = 0').get(email);
     let devResetLink;
     if (user) {
-      const token = createResetToken(db, user.id);
+      const token = await createResetToken(db, user.id);
       const link = `/reset-password?token=${token}`;
       if (mailer) {
         const base = config.publicUrl ?? `${req.protocol}://${req.get('host')}`;
@@ -98,22 +98,22 @@ export function accountRouter({ db, config, mailer }) {
     res.json({ ok: true, devResetLink });
   });
 
-  router.post('/auth/reset', authLimit, (req, res) => {
+  router.post('/auth/reset', authLimit, async (req, res) => {
     const password = v.password(req.body.password);
-    const userId = consumeResetToken(db, req.body.token);
+    const userId = await consumeResetToken(db, req.body.token);
     if (!userId) throw new HttpError(400, 'This reset link is invalid or has expired');
     // Opening the link proves the user can read this inbox.
-    db.prepare('UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ?').run(hashPassword(password), userId);
-    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
-    startSession(res, userId);
+    await db.prepare('UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ?').run(hashPassword(password), userId);
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    await startSession(res, userId);
     res.json({ ok: true });
   });
 
-  router.get('/me', (req, res) => {
-    res.json({ user: req.user ? me(db, req.user) : null });
+  router.get('/me', async (req, res) => {
+    res.json({ user: req.user ? await me(db, req.user) : null });
   });
 
-  router.patch('/me', requireUser, (req, res) => {
+  router.patch('/me', requireUser, async (req, res) => {
     const b = req.body;
     const u = req.user;
     const next = {
@@ -153,7 +153,7 @@ export function accountRouter({ db, config, mailer }) {
       }
       next.notify_settings = JSON.stringify(merged);
     }
-    const updated = db
+    const updated = await db
       .prepare(
         `UPDATE users SET name = ?, bio = ?, photo_url = ?, location_name = ?, lat = ?, lng = ?, experience = ?,
            privacy = ?, emergency_name = ?, emergency_phone = ?, onboarded = ?, activities = ?, notify_settings = ?
@@ -164,54 +164,54 @@ export function accountRouter({ db, config, mailer }) {
         next.privacy, next.emergency_name, next.emergency_phone, next.onboarded, next.activities,
         next.notify_settings, u.id,
       );
-    res.json({ user: me(db, updated) });
+    res.json({ user: await me(db, updated) });
   });
 
   // Simulated subscription: there is no payment provider in the MVP, so this
   // grants 30 days of the premium community-creator plan (PRD §21, §32).
-  router.post('/me/premium', requireUser, (req, res) => {
+  router.post('/me/premium', requireUser, async (req, res) => {
     const start = new Date();
     const end = new Date(start.getTime() + 30 * 864e5);
-    db.prepare("UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'").run(req.user.id);
-    db.prepare("INSERT INTO subscriptions (user_id, plan, status, start_date, end_date) VALUES (?, ?, 'active', ?, ?)").run(
+    await db.prepare("UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'").run(req.user.id);
+    await db.prepare("INSERT INTO subscriptions (user_id, plan, status, start_date, end_date) VALUES (?, ?, 'active', ?, ?)").run(
       req.user.id, PREMIUM_PLAN, start.toISOString(), end.toISOString(),
     );
-    res.json({ user: me(db, req.user), premiumUntil: end.toISOString() });
+    res.json({ user: await me(db, req.user), premiumUntil: end.toISOString() });
   });
 
-  router.delete('/me/premium', requireUser, (req, res) => {
-    db.prepare("UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'").run(req.user.id);
-    res.json({ user: me(db, req.user) });
+  router.delete('/me/premium', requireUser, async (req, res) => {
+    await db.prepare("UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'").run(req.user.id);
+    res.json({ user: await me(db, req.user) });
   });
 
-  router.get('/users/:id', (req, res) => {
+  router.get('/users/:id', async (req, res) => {
     const id = v.idParam(req.params.id);
-    const u = db.prepare('SELECT * FROM users WHERE id = ? AND suspended = 0').get(id);
+    const u = await db.prepare('SELECT * FROM users WHERE id = ? AND suspended = 0').get(id);
     if (!u) throw new HttpError(404, 'User not found');
     const viewerId = req.user?.id ?? 0;
     const profile = publicUser(u, { viewerId });
     if (profile.private) return res.json({ user: profile });
 
-    const routes = db
+    const routes = (await db
       .prepare(`${ROUTE_SELECT} WHERE r.creator_id = ? AND r.hidden = 0 AND r.visibility = 'public' ORDER BY r.created_at DESC LIMIT 50`)
-      .all(id)
+      .all(id))
       .map(routeSummary);
-    const communities = db
+    const communities = (await db
       .prepare(
         `SELECT c.id, c.name, c.activity_type FROM community_members m JOIN communities c ON c.id = m.community_id
          WHERE m.user_id = ? AND m.status = 'member' AND c.hidden = 0 AND c.privacy = 'public' ORDER BY c.name`,
       )
-      .all(id)
+      .all(id))
       .map((c) => ({ id: c.id, name: c.name, activityType: c.activity_type }));
     // History: past activities the user checked in to (PRD §26).
-    const history = db
+    const history = (await db
       .prepare(
         `SELECT a.id, a.title, a.activity_type, a.starts_at, r.distance_m
          FROM activity_participants p JOIN activity_plans a ON a.id = p.activity_id JOIN routes r ON r.id = a.route_id
          WHERE p.user_id = ? AND p.checked_in_at IS NOT NULL AND a.status != 'cancelled'
          ORDER BY a.starts_at DESC LIMIT 100`,
       )
-      .all(id)
+      .all(id))
       .map((a) => ({
         id: a.id,
         title: a.title,
