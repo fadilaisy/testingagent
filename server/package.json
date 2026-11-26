@@ -10,9 +10,11 @@
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.3.16",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "fast-xml-parser": "^5.2.5",
-    "multer": "^2.5.0"
+    "multer": "^2.5.0",
+    "pg": "^8.23.1"
   }
 }

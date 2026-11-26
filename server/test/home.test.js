@@ -18,7 +18,7 @@ test('thumbLine keeps start and end and caps the point count', () => {
 test('home gives the viewer a stats column and a feed of finished outings', async () => {
   const t = await startTestApp();
   try {
-    seed(t.db);
+    await seed(t.db);
     const kevin = t.client();
     await kevin.post('/api/auth/login', { email: 'kevin@roamr.test', password: 'password123' });
     const home = (await kevin.get('/api/home')).body;
@@ -48,11 +48,11 @@ test('home gives the viewer a stats column and a feed of finished outings', asyn
 test('home feed hides private profiles, private plans and anonymous stats', async () => {
   const t = await startTestApp();
   try {
-    seed(t.db);
-    const sarah = t.db.prepare("SELECT id FROM users WHERE email = 'sarah@roamr.test'").get();
-    t.db.prepare("UPDATE users SET privacy = 'private' WHERE id = ?").run(sarah.id);
-    const ride = t.db.prepare("SELECT id FROM activity_plans WHERE title = 'Car-free Day Run' AND status = 'completed'").get();
-    t.db.prepare("UPDATE activity_plans SET visibility = 'private' WHERE id = ?").run(ride.id);
+    await seed(t.db);
+    const sarah = await t.db.prepare("SELECT id FROM users WHERE email = 'sarah@roamr.test'").get();
+    await t.db.prepare("UPDATE users SET privacy = 'private' WHERE id = ?").run(sarah.id);
+    const ride = await t.db.prepare("SELECT id FROM activity_plans WHERE title = 'Car-free Day Run' AND status = 'completed'").get();
+    await t.db.prepare("UPDATE activity_plans SET visibility = 'private' WHERE id = ?").run(ride.id);
 
     const guest = t.client();
     const home = (await guest.get('/api/home')).body;

@@ -1,5 +1,6 @@
 import { ACTIVITY_TYPES, CONDITION_CATEGORIES, conditionSeverity } from './activities.js';
 import { isPremium } from './auth.js';
+import { NOW_SQL } from './db.js';
 import { userSettings } from './notify.js';
 import { parseJson } from './validate.js';
 
@@ -17,7 +18,7 @@ export function publicUser(u, { viewerId } = {}) {
   };
 }
 
-export function me(db, u) {
+export async function me(db, u) {
   return {
     id: u.id,
     email: u.email,
@@ -36,7 +37,7 @@ export function me(db, u) {
     onboarded: Boolean(u.onboarded),
     isAdmin: Boolean(u.is_admin),
     googleLinked: Boolean(u.google_sub),
-    isPremium: isPremium(db, u.id),
+    isPremium: await isPremium(db, u.id),
   };
 }
 
@@ -64,14 +65,15 @@ export function routeSummary(r) {
 }
 
 // Joins a route row with creator name and popularity counters.
+const WEEK_AGO_SQL = `to_char((now() - interval '7 days') AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 export const ROUTE_SELECT = `
   SELECT r.*, u.name AS creator_name,
     (SELECT COUNT(*) FROM activity_plans a WHERE a.route_id = r.id AND a.status = 'open'
-       AND a.visibility = 'public' AND a.starts_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')) AS upcoming_count,
+       AND a.visibility = 'public' AND a.starts_at > ${NOW_SQL}) AS upcoming_count,
     (SELECT COUNT(DISTINCT p.user_id) FROM activity_participants p JOIN activity_plans a ON a.id = p.activity_id
        WHERE a.route_id = r.id AND p.checked_in_at IS NOT NULL) AS completed_count,
     (SELECT COUNT(*) FROM track_reports t WHERE t.route_id = r.id
-       AND t.created_at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days')) AS report_count
+       AND t.created_at > ${WEEK_AGO_SQL}) AS report_count
   FROM routes r JOIN users u ON u.id = r.creator_id`;
 
 export function trackReport(t) {

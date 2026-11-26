@@ -15,20 +15,19 @@ const CHECKIN_CLOSES_AFTER_MS = 3 * 3600 * 1000;
 export function activitiesRouter({ db, hub, notifier, config }) {
   const router = Router();
 
-  const load = (id, viewerId = 0) => {
-    const a = db.prepare(`${ACTIVITY_SELECT} WHERE a.id = ?`).get(viewerId, id);
+  const load = async (id, viewerId = 0) => {
+    const a = await db.prepare(`${ACTIVITY_SELECT} WHERE a.id = ?`).get(viewerId, id);
     if (!a) throw new HttpError(404, 'Activity not found');
     return a;
   };
 
-  const memberIds = (activityId) =>
-    db
-      .prepare("SELECT user_id FROM activity_participants WHERE activity_id = ? AND status = 'joined'")
-      .all(activityId)
-      .map((r) => r.user_id);
+  const memberIds = async (activityId) => (await db
+    .prepare("SELECT user_id FROM activity_participants WHERE activity_id = ? AND status = 'joined'")
+    .all(activityId))
+    .map((r) => r.user_id);
 
-  const requireMember = (activityId, userId) => {
-    const p = db
+  const requireMember = async (activityId, userId) => {
+    const p = await db
       .prepare("SELECT * FROM activity_participants WHERE activity_id = ? AND user_id = ? AND status = 'joined'")
       .get(activityId, userId);
     if (!p) throw new HttpError(403, 'Join this activity to see the group chat');
@@ -36,19 +35,19 @@ export function activitiesRouter({ db, hub, notifier, config }) {
   };
 
   // Inserts a chat message and pushes it to every member's open tabs.
-  function post(activityId, userId, kind, body, data = null, userName = null) {
-    const m = db
+  async function post(activityId, userId, kind, body, data = null, userName = null) {
+    const m = await db
       .prepare('INSERT INTO chat_messages (activity_id, user_id, kind, body, data) VALUES (?, ?, ?, ?, ?) RETURNING *')
       .get(activityId, userId, kind, body, data ? JSON.stringify(data) : null);
     const message = chatMessage({ ...m, user_name: userName });
-    hub.send(memberIds(activityId), 'chat', message);
+    hub.send(await memberIds(activityId), 'chat', message);
     return message;
   }
 
-  function detail(id, viewer) {
-    const a = load(id, viewer?.id ?? 0);
-    const route = db.prepare('SELECT geometry, start_lat, start_lng, end_lat, end_lng, est_duration_s FROM routes WHERE id = ?').get(a.route_id);
-    const participants = db
+  async function detail(id, viewer) {
+    const a = await load(id, viewer?.id ?? 0);
+    const route = await db.prepare('SELECT geometry, start_lat, start_lng, end_lat, end_lng, est_duration_s FROM routes WHERE id = ?').get(a.route_id);
+    const participants = await db
       .prepare(
         `SELECT p.*, u.name, u.photo_url, u.privacy, u.bio, u.location_name, u.experience, u.activities
          FROM activity_participants p JOIN users u ON u.id = p.user_id
@@ -84,7 +83,7 @@ export function activitiesRouter({ db, hub, notifier, config }) {
     };
   }
 
-  router.get('/activities', (req, res) => {
+  router.get('/activities', async (req, res) => {
     const q = req.query;
     const viewerId = req.user?.id ?? 0;
     const where = [];
@@ -117,7 +116,7 @@ export function activitiesRouter({ db, hub, notifier, config }) {
       params.push(v.oneOf(q.activity, 'Activity', ACTIVITY_KEYS));
     }
     const order = q.when === 'past' ? 'DESC' : 'ASC';
-    let rows = db.prepare(`${ACTIVITY_SELECT} WHERE ${where.join(' AND ')} ORDER BY a.starts_at ${order} LIMIT 300`).all(...params);
+    let rows = await db.prepare(`${ACTIVITY_SELECT} WHERE ${where.join(' AND ')} ORDER BY a.starts_at ${order} LIMIT 300`).all(...params);
     const lat = v.lat(q.lat, 'Latitude');
     const lng = v.lng(q.lng, 'Longitude');
     if (lat != null && lng != null) {
@@ -129,10 +128,10 @@ export function activitiesRouter({ db, hub, notifier, config }) {
     res.json({ activities: rows.slice(0, limit).map(activitySummary), total: rows.length });
   });
 
-  router.post('/activities', requireUser, (req, res) => {
+  router.post('/activities', requireUser, async (req, res) => {
     const b = req.body;
     const routeId = v.int(b.routeId, 'Route', { min: 1, required: true });
-    const route = db.prepare('SELECT * FROM routes WHERE id = ? AND hidden = 0').get(routeId);
+    const route = await db.prepare('SELECT * FROM routes WHERE id = ? AND hidden = 0').get(routeId);
     if (!route) throw new HttpError(400, 'Choose a route for this activity', { field: 'Route' });
     const activityType = v.oneOf(b.activityType, 'Activity', ACTIVITY_KEYS) ?? route.activity_type;
     const startsAt = v.isoDate(b.startsAt, 'Date and time', { required: true });
@@ -147,8 +146,8 @@ export function activitiesRouter({ db, hub, notifier, config }) {
     const description = v.text(b.description, 'Description', { max: 1000 });
     const visibility = v.oneOf(b.visibility ?? 'public', 'Visibility', ['public', 'private']);
 
-    const id = transaction(db, () => {
-      const { id } = db
+    const id = await transaction(db, async (db) => {
+      const { id } = await db
         .prepare(
           `INSERT INTO activity_plans (route_id, creator_id, title, activity_type, starts_at, meeting_point, meeting_lat,
              meeting_lng, participant_limit, pace, description, visibility)
@@ -156,149 +155,152 @@ export function activitiesRouter({ db, hub, notifier, config }) {
         )
         .get(routeId, req.user.id, title, activityType, startsAt, meetingPoint, meetingLat, meetingLng,
           participantLimit, pace, description, visibility);
-      db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'joined')").run(id, req.user.id);
+      await db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'joined')").run(id, req.user.id);
       return id;
     });
-    post(id, null, 'system', `${req.user.name} created this activity`);
-    res.status(201).json(detail(id, req.user));
+    await post(id, null, 'system', `${req.user.name} created this activity`);
+    res.status(201).json(await detail(id, req.user));
   });
 
-  router.get('/activities/:id', (req, res) => {
-    res.json(detail(v.idParam(req.params.id), req.user));
+  router.get('/activities/:id', async (req, res) => {
+    res.json(await detail(v.idParam(req.params.id), req.user));
   });
 
-  router.patch('/activities/:id', requireUser, (req, res) => {
-    const a = load(v.idParam(req.params.id), req.user.id);
+  router.patch('/activities/:id', requireUser, async (req, res) => {
+    const a = await load(v.idParam(req.params.id), req.user.id);
     if (a.creator_id !== req.user.id) throw new HttpError(403, 'Only the host can change this activity');
     const status = v.oneOf(req.body.status, 'Status', ['cancelled', 'completed'], { required: true });
     if (a.status !== 'open') throw new HttpError(409, `This activity is already ${a.status}`);
-    db.prepare('UPDATE activity_plans SET status = ? WHERE id = ?').run(status, a.id);
-    post(a.id, null, 'system', `${req.user.name} marked this activity as ${status}`);
+    await db.prepare('UPDATE activity_plans SET status = ? WHERE id = ?').run(status, a.id);
+    await post(a.id, null, 'system', `${req.user.name} marked this activity as ${status}`);
     if (status === 'cancelled') {
-      notifier.notifyMany(memberIds(a.id).filter((id) => id !== req.user.id), {
+      await notifier.notifyMany((await memberIds(a.id)).filter((id) => id !== req.user.id), {
         type: 'activity_update',
         title: `${a.title} was cancelled`,
         body: `Planned for ${a.starts_at}`,
         link: `/activities/${a.id}`,
       });
     }
-    res.json(detail(a.id, req.user));
+    res.json(await detail(a.id, req.user));
   });
 
-  router.post('/activities/:id/join', requireUser, (req, res) => {
-    const a = load(v.idParam(req.params.id), req.user.id);
+  router.post('/activities/:id/join', requireUser, async (req, res) => {
+    const a = await load(v.idParam(req.params.id), req.user.id);
     if (a.status !== 'open') throw new HttpError(409, 'This activity is no longer open');
     if (Date.parse(a.starts_at) < Date.now() - 3600 * 1000) throw new HttpError(409, 'This activity has already started');
-    if (a.my_status === 'joined') return res.json(detail(a.id, req.user));
+    if (a.my_status === 'joined') return res.json(await detail(a.id, req.user));
     if (a.my_status === 'requested') throw new HttpError(409, 'Your request is waiting for the host');
 
     if (a.visibility === 'private') {
-      db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'requested')").run(a.id, req.user.id);
-      notifier.notify(a.creator_id, {
+      await db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'requested')").run(a.id, req.user.id);
+      await notifier.notify(a.creator_id, {
         type: 'activity_join',
         title: `${req.user.name} asked to join ${a.title}`,
         link: `/activities/${a.id}`,
       });
-      return res.json(detail(a.id, req.user));
+      return res.json(await detail(a.id, req.user));
     }
 
     // Capacity check and insert in one transaction so two people can't take
     // the last spot at the same time.
-    transaction(db, () => {
-      const count = db
+    await transaction(db, async (db) => {
+      // Locks the activity so concurrent joins wait their turn here.
+      await db.prepare('SELECT 1 FROM activity_plans WHERE id = ? FOR UPDATE').get(a.id);
+      const count = (await db
         .prepare("SELECT COUNT(*) AS n FROM activity_participants WHERE activity_id = ? AND status = 'joined'")
-        .get(a.id).n;
+        .get(a.id)).n;
       if (a.participant_limit && count >= a.participant_limit) throw new HttpError(409, 'This activity is full');
-      db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'joined')").run(a.id, req.user.id);
+      await db.prepare("INSERT INTO activity_participants (activity_id, user_id, status) VALUES (?, ?, 'joined')").run(a.id, req.user.id);
     });
-    post(a.id, null, 'system', `${req.user.name} joined`);
-    notifier.notify(a.creator_id, {
+    await post(a.id, null, 'system', `${req.user.name} joined`);
+    await notifier.notify(a.creator_id, {
       type: 'activity_join',
       title: `${req.user.name} joined ${a.title}`,
       link: `/activities/${a.id}`,
     });
-    res.json(detail(a.id, req.user));
+    res.json(await detail(a.id, req.user));
   });
 
-  router.post('/activities/:id/leave', requireUser, (req, res) => {
-    const a = load(v.idParam(req.params.id), req.user.id);
+  router.post('/activities/:id/leave', requireUser, async (req, res) => {
+    const a = await load(v.idParam(req.params.id), req.user.id);
     if (a.creator_id === req.user.id) throw new HttpError(409, 'Hosts cancel the activity instead of leaving it');
     const wasJoined = a.my_status === 'joined';
-    db.prepare('DELETE FROM activity_participants WHERE activity_id = ? AND user_id = ?').run(a.id, req.user.id);
-    if (wasJoined) post(a.id, null, 'system', `${req.user.name} left`);
-    res.json(detail(a.id, req.user));
+    await db.prepare('DELETE FROM activity_participants WHERE activity_id = ? AND user_id = ?').run(a.id, req.user.id);
+    if (wasJoined) await post(a.id, null, 'system', `${req.user.name} left`);
+    res.json(await detail(a.id, req.user));
   });
 
-  router.post('/activities/:id/requests/:userId/:decision', requireUser, (req, res) => {
-    const a = load(v.idParam(req.params.id), req.user.id);
+  router.post('/activities/:id/requests/:userId/:decision', requireUser, async (req, res) => {
+    const a = await load(v.idParam(req.params.id), req.user.id);
     if (a.creator_id !== req.user.id) throw new HttpError(403, 'Only the host can answer join requests');
     const userId = v.idParam(req.params.userId);
     const decision = v.oneOf(req.params.decision, 'Decision', ['approve', 'decline'], { required: true });
-    const reqRow = db
+    const reqRow = await db
       .prepare("SELECT 1 FROM activity_participants WHERE activity_id = ? AND user_id = ? AND status = 'requested'")
       .get(a.id, userId);
     if (!reqRow) throw new HttpError(404, 'Request not found');
-    const user = db.prepare('SELECT name FROM users WHERE id = ?').get(userId);
+    const user = await db.prepare('SELECT name FROM users WHERE id = ?').get(userId);
     if (decision === 'approve') {
-      transaction(db, () => {
-        const count = db
+      await transaction(db, async (db) => {
+        await db.prepare('SELECT 1 FROM activity_plans WHERE id = ? FOR UPDATE').get(a.id);
+        const count = (await db
           .prepare("SELECT COUNT(*) AS n FROM activity_participants WHERE activity_id = ? AND status = 'joined'")
-          .get(a.id).n;
+          .get(a.id)).n;
         if (a.participant_limit && count >= a.participant_limit) throw new HttpError(409, 'This activity is full');
-        db.prepare("UPDATE activity_participants SET status = 'joined' WHERE activity_id = ? AND user_id = ?").run(a.id, userId);
+        await db.prepare("UPDATE activity_participants SET status = 'joined' WHERE activity_id = ? AND user_id = ?").run(a.id, userId);
       });
-      post(a.id, null, 'system', `${user.name} joined`);
+      await post(a.id, null, 'system', `${user.name} joined`);
     } else {
-      db.prepare('DELETE FROM activity_participants WHERE activity_id = ? AND user_id = ?').run(a.id, userId);
+      await db.prepare('DELETE FROM activity_participants WHERE activity_id = ? AND user_id = ?').run(a.id, userId);
     }
-    notifier.notify(userId, {
+    await notifier.notify(userId, {
       type: 'activity_update',
       title: decision === 'approve' ? `You're in: ${a.title}` : `Your request for ${a.title} was declined`,
       link: `/activities/${a.id}`,
     });
-    res.json(detail(a.id, req.user));
+    res.json(await detail(a.id, req.user));
   });
 
-  router.get('/activities/:id/messages', requireUser, (req, res) => {
+  router.get('/activities/:id/messages', requireUser, async (req, res) => {
     const id = v.idParam(req.params.id);
-    load(id, req.user.id);
-    requireMember(id, req.user.id);
+    await load(id, req.user.id);
+    await requireMember(id, req.user.id);
     const before = v.int(req.query.before, 'Before', { min: 1 });
-    const rows = db
+    const rows = await db
       .prepare(
         `SELECT m.*, u.name AS user_name FROM chat_messages m LEFT JOIN users u ON u.id = m.user_id
-         WHERE m.activity_id = ? AND (? IS NULL OR m.id < ?) ORDER BY m.id DESC LIMIT 100`,
+         WHERE m.activity_id = ? AND (?::int IS NULL OR m.id < ?) ORDER BY m.id DESC LIMIT 100`,
       )
       .all(id, before, before);
     res.json({ messages: rows.reverse().map(chatMessage), hasMore: rows.length === 100 });
   });
 
-  router.post('/activities/:id/messages', requireUser, (req, res) => {
+  router.post('/activities/:id/messages', requireUser, async (req, res) => {
     const id = v.idParam(req.params.id);
-    const a = load(id, req.user.id);
-    requireMember(id, req.user.id);
+    const a = await load(id, req.user.id);
+    await requireMember(id, req.user.id);
     if (a.status === 'cancelled') throw new HttpError(409, 'This activity was cancelled');
     const loc = req.body.location;
     if (loc) {
       const lat = v.lat(loc.lat, 'Latitude', { required: true });
       const lng = v.lng(loc.lng, 'Longitude', { required: true });
       const body = v.text(req.body.body, 'Message', { max: 200 }) || `${req.user.name} shared a location`;
-      return res.status(201).json({ message: post(id, req.user.id, 'location', body, { lat, lng }, req.user.name) });
+      return res.status(201).json({ message: await post(id, req.user.id, 'location', body, { lat, lng }, req.user.name) });
     }
     const body = v.text(req.body.body, 'Message', { max: 1000, required: true });
-    res.status(201).json({ message: post(id, req.user.id, 'text', body, null, req.user.name) });
+    res.status(201).json({ message: await post(id, req.user.id, 'text', body, null, req.user.name) });
   });
 
-  router.post('/activities/:id/checkin', requireUser, (req, res) => {
+  router.post('/activities/:id/checkin', requireUser, async (req, res) => {
     const id = v.idParam(req.params.id);
-    const a = load(id, req.user.id);
-    const p = requireMember(id, req.user.id);
+    const a = await load(id, req.user.id);
+    const p = await requireMember(id, req.user.id);
     if (a.status === 'cancelled') throw new HttpError(409, 'This activity was cancelled');
     if (p.checked_in_at) return res.json({ checkedInAt: p.checked_in_at, alreadyCheckedIn: true });
     const lat = v.lat(req.body.lat, 'Latitude', { required: true });
     const lng = v.lng(req.body.lng, 'Longitude', { required: true });
 
-    const route = db.prepare('SELECT geometry, est_duration_s FROM routes WHERE id = ?').get(a.route_id);
+    const route = await db.prepare('SELECT geometry, est_duration_s FROM routes WHERE id = ?').get(a.route_id);
     const start = Date.parse(a.starts_at);
     const now = Date.now();
     if (!config.demoMode) {
@@ -318,25 +320,25 @@ export function activitiesRouter({ db, hub, notifier, config }) {
       });
     }
     const at = new Date().toISOString();
-    db.prepare(
+    await db.prepare(
       'UPDATE activity_participants SET checked_in_at = ?, check_in_lat = ?, check_in_lng = ? WHERE activity_id = ? AND user_id = ?',
     ).run(at, lat, lng, id, req.user.id);
-    post(id, null, 'system', `${req.user.name} checked in`);
+    await post(id, null, 'system', `${req.user.name} checked in`);
     res.json({ checkedInAt: at });
   });
 
   // SOS (PRD §30): shares the member's position with the group, alerts every
   // member regardless of notification settings, and returns the user's own
   // emergency contact so the client can offer to call it.
-  router.post('/activities/:id/sos', requireUser, (req, res) => {
+  router.post('/activities/:id/sos', requireUser, async (req, res) => {
     const id = v.idParam(req.params.id);
-    const a = load(id, req.user.id);
-    requireMember(id, req.user.id);
+    const a = await load(id, req.user.id);
+    await requireMember(id, req.user.id);
     const lat = v.lat(req.body.lat, 'Latitude');
     const lng = v.lng(req.body.lng, 'Longitude');
     const note = v.text(req.body.note, 'Note', { max: 200 });
     const hasLocation = lat != null && lng != null;
-    const message = post(
+    const message = await post(
       id,
       req.user.id,
       'sos',
@@ -344,7 +346,7 @@ export function activitiesRouter({ db, hub, notifier, config }) {
       hasLocation ? { lat, lng } : null,
       req.user.name,
     );
-    notifier.notifyMany(memberIds(id).filter((uid) => uid !== req.user.id), {
+    await notifier.notifyMany((await memberIds(id)).filter((uid) => uid !== req.user.id), {
       type: 'sos',
       title: `SOS from ${req.user.name}`,
       body: `${a.title}${hasLocation ? ` · ${lat.toFixed(5)}, ${lng.toFixed(5)}` : ''}`,

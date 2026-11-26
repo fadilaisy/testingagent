@@ -24,8 +24,29 @@ export function fakeWeather({ rainyHoursUtc = [] } = {}) {
   };
 }
 
-export async function startTestApp({ demoMode = true, config = {}, payments = null, google = null, mailer = null } = {}) {
-  const db = openDb(':memory:');
+// A fresh, empty database. Tests use in-memory PGlite; with
+// TEST_DATABASE_URL=postgres://... each one gets its own schema on that
+// server instead, so the suite also runs against a real Postgres.
+export async function testDb() {
+  const url = process.env.TEST_DATABASE_URL;
+  if (!url) return openDb(':memory:');
+  const schema = `test_${process.pid}_${Math.random().toString(36).slice(2, 10)}`;
+  const admin = await openDb(url);
+  await admin.exec(`CREATE SCHEMA ${schema}`);
+  await admin.close();
+  const scoped = new URL(url);
+  scoped.searchParams.set('options', `-c search_path=${schema}`);
+  const db = await openDb(scoped.toString());
+  const close = db.close;
+  db.close = async () => {
+    await db.exec(`DROP SCHEMA ${schema} CASCADE`);
+    await close();
+  };
+  return db;
+}
+
+export async function startTestApp({ demoMode = true, config = {}, payments = null, google = null, mailer = null, db: givenDb } = {}) {
+  const db = givenDb ?? (await testDb());
   const offlineFetch = async () => {
     throw new Error('offline');
   };
@@ -91,7 +112,7 @@ export async function startTestApp({ demoMode = true, config = {}, payments = nu
   async function close() {
     app.locals.hub.closeAll();
     await new Promise((resolve) => server.close(resolve));
-    db.close();
+    await db.close();
   }
 
   return { db, base, client, signup, close };

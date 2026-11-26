@@ -4,10 +4,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { promoteAdmins } from '../src/auth.js';
-import { DEFAULT_DATABASE_FILE, loadConfig, parseTrustProxy } from '../src/config.js';
-import { openDb } from '../src/db.js';
+import { DEFAULT_DATABASE_DIR, loadConfig, parseTrustProxy } from '../src/config.js';
 import { hasDemoData, seed } from '../src/seed.js';
-import { startTestApp } from './helpers.js';
+import { startTestApp, testDb } from './helpers.js';
 
 const register = (c, email, extra = {}) =>
   c.post('/api/auth/register', { email, password: 'secret-pass', name: 'Tester', ...extra });
@@ -19,13 +18,15 @@ describe('config', () => {
     assert.equal(cfg.seed, true);
     assert.equal(cfg.demoMode, true);
     assert.equal(cfg.port, 3001);
-    assert.equal(cfg.databaseFile, DEFAULT_DATABASE_FILE);
+    assert.equal(cfg.database, DEFAULT_DATABASE_DIR);
     assert.equal(cfg.signupCode, null);
   });
 
   test('production needs a database path and keeps demo data off', () => {
-    assert.throws(() => loadConfig({ NODE_ENV: 'production' }), /DATABASE_FILE/);
-    const cfg = loadConfig({ NODE_ENV: 'production', DATABASE_FILE: '/data/roamr.db', PORT: '8080' });
+    assert.throws(() => loadConfig({ NODE_ENV: 'production' }), /DATABASE_URL/);
+    assert.throws(() => loadConfig({ NODE_ENV: 'production', DATABASE_URL: '/data/pglite' }), /postgres:\/\//, 'no embedded database in production');
+    const cfg = loadConfig({ NODE_ENV: 'production', DATABASE_URL: 'postgres://roamr:pw@db:5432/roamr', PORT: '8080' });
+    assert.equal(cfg.database, 'postgres://roamr:pw@db:5432/roamr');
     assert.equal(cfg.seed, false);
     assert.equal(cfg.demoMode, false);
     assert.equal(cfg.secureCookies, true);
@@ -33,7 +34,7 @@ describe('config', () => {
   });
 
   test('explicit flags override the defaults', () => {
-    const cfg = loadConfig({ NODE_ENV: 'production', DATABASE_FILE: '/d.db', SEED: '1', DEMO_MODE: '1', INSECURE_COOKIES: '1' });
+    const cfg = loadConfig({ NODE_ENV: 'production', DATABASE_URL: 'postgres://roamr@db/roamr', SEED: '1', DEMO_MODE: '1', INSECURE_COOKIES: '1' });
     assert.equal(cfg.seed, true);
     assert.equal(cfg.demoMode, true);
     assert.equal(cfg.secureCookies, false);
@@ -59,20 +60,20 @@ describe('config', () => {
 });
 
 describe('demo data detection and admin promotion', () => {
-  test('hasDemoData spots seeded accounts', () => {
-    const db = openDb(':memory:');
-    assert.equal(hasDemoData(db), false);
-    seed(db);
-    assert.equal(hasDemoData(db), true);
+  test('hasDemoData spots seeded accounts', async () => {
+    const db = await testDb();
+    assert.equal(await hasDemoData(db), false);
+    await seed(db);
+    assert.equal(await hasDemoData(db), true);
     db.close();
   });
 
-  test('promoteAdmins grants admin to listed accounts once', () => {
-    const db = openDb(':memory:');
-    db.prepare("INSERT INTO users (email, password_hash, name) VALUES ('a@x.dev', 'h', 'A'), ('b@x.dev', 'h', 'B')").run();
-    assert.equal(promoteAdmins(db, ['a@x.dev', 'missing@x.dev']), 1);
-    assert.equal(promoteAdmins(db, ['a@x.dev']), 0);
-    assert.equal(db.prepare("SELECT is_admin FROM users WHERE email = 'b@x.dev'").get().is_admin, 0);
+  test('promoteAdmins grants admin to listed accounts once', async () => {
+    const db = await testDb();
+    await db.prepare("INSERT INTO users (email, password_hash, name) VALUES ('a@x.dev', 'h', 'A'), ('b@x.dev', 'h', 'B')").run();
+    assert.equal(await promoteAdmins(db, ['a@x.dev', 'missing@x.dev']), 1);
+    assert.equal(await promoteAdmins(db, ['a@x.dev']), 0);
+    assert.equal((await db.prepare("SELECT is_admin FROM users WHERE email = 'b@x.dev'").get()).is_admin, 0);
     db.close();
   });
 });
@@ -136,15 +137,31 @@ describe('AWS single deployment (deploy/aws)', () => {
     [...compose.matchAll(/^ {6}([A-Z_]+): '?([^'\n]*)'?$/gm)].map(([, name, value]) => [name, value]),
   );
 
+  // DATABASE_URL as setup-instance.sh writes it into /opt/roamr/.env.
+  const setup = read('../../deploy/aws/setup-instance.sh');
+  const databaseUrl = /^DATABASE_URL=(\S+)$/m.exec(setup)[1].replace('$pw', 'secret');
+
   test('compose settings make a valid production config with one proxy hop', () => {
-    const cfg = loadConfig(env);
+    const cfg = loadConfig({ ...env, DATABASE_URL: databaseUrl });
     assert.equal(cfg.production, true);
     assert.equal(cfg.port, 3001);
     assert.equal(cfg.trustProxy, 1, 'Caddy is the only proxy in front of the app');
     assert.equal(cfg.secureCookies, true);
-    assert.ok(cfg.databaseFile.startsWith('/data/'), 'database lives on the mounted folder');
-    assert.match(compose, /- \/opt\/roamr\/data:\/data$/m);
     assert.match(compose, /localhost:3001\/api\/health/);
+  });
+
+  test('the app reaches the compose Postgres with the user, database and password it is given', () => {
+    const url = new URL(databaseUrl);
+    assert.equal(url.hostname, 'db', 'the compose service name');
+    assert.equal(url.port, '5432');
+    assert.equal(url.username, env.POSTGRES_USER);
+    assert.equal(url.pathname, `/${env.POSTGRES_DB}`);
+    assert.match(setup, /POSTGRES_PASSWORD=\$pw/, 'Postgres and the app share one generated password');
+    assert.match(compose, /image: postgres:17/);
+    assert.match(compose, /- \/opt\/roamr\/postgres:\/var\/lib\/postgresql\/data$/m, 'data lives on the instance disk');
+    assert.match(compose, /condition: service_healthy/, 'the app waits for the database');
+    const dbService = compose.slice(compose.indexOf('  db:'), compose.indexOf('  app:'));
+    assert.doesNotMatch(dbService, /^ +ports:/m, 'Postgres is not exposed outside the instance');
   });
 
   test('Caddy proxies the whole site to the app and keeps live chat streaming', () => {

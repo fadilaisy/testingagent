@@ -31,26 +31,26 @@ export function createNotifier({ db, hub }) {
   );
   const getUser = db.prepare('SELECT id, notify_settings FROM users WHERE id = ?');
 
-  function notify(userId, { type, title, body = '', link = null }) {
-    const user = getUser.get(userId);
+  async function notify(userId, { type, title, body = '', link = null }) {
+    const user = await getUser.get(userId);
     if (!user) return null;
     if (NOTIFICATION_TYPES[type] && userSettings(user)[type] === false) return null;
-    const row = insert.get(userId, type, title, body, link);
+    const row = await insert.get(userId, type, title, body, link);
     hub.send([userId], 'notification', row);
     return row;
   }
 
-  function notifyMany(userIds, payload) {
-    return userIds.map((id) => notify(id, payload)).filter(Boolean).length;
+  async function notifyMany(userIds, payload) {
+    return (await Promise.all(userIds.map((id) => notify(id, payload)))).filter(Boolean).length;
   }
 
   // Finds users who live within the event's radius, like its activity type,
   // allow nearby notifications and have not hit the frequency limit.
-  function notifyNearbyEvent(event, { excludeUserIds = [] } = {}) {
+  async function notifyNearbyEvent(event, { excludeUserIds = [] } = {}) {
     if (!event.notification_radius_km) return 0;
     const radiusM = event.notification_radius_km * 1000;
     const b = boundingBox(event.lat, event.lng, radiusM);
-    const candidates = db
+    const candidates = await db
       .prepare(
         `SELECT id, lat, lng, activities, notify_settings FROM users
          WHERE suspended = 0 AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`,
@@ -59,7 +59,7 @@ export function createNotifier({ db, hub }) {
 
     const recent = db.prepare(
       `SELECT
-         SUM(created_at > ?) AS day,
+         COUNT(*) FILTER (WHERE created_at > ?) AS day,
          COUNT(*) AS week
        FROM notifications WHERE user_id = ? AND type = 'nearby_event' AND created_at > ?`,
     );
@@ -76,11 +76,11 @@ export function createNotifier({ db, hub }) {
       const distance = haversine(event.lat, event.lng, u.lat, u.lng);
       const userRadiusM = (Number(settings.nearby_radius_km) || DEFAULT_SETTINGS.nearby_radius_km) * 1000;
       if (distance > Math.min(radiusM, userRadiusM)) continue;
-      const counts = recent.get(dayAgo, u.id, weekAgo);
+      const counts = await recent.get(dayAgo, u.id, weekAgo);
       if ((counts.day ?? 0) >= NEARBY_LIMIT_PER_DAY || (counts.week ?? 0) >= NEARBY_LIMIT_PER_WEEK) continue;
       const km = Math.max(1, Math.round(distance / 1000));
       if (
-        notify(u.id, {
+        await notify(u.id, {
           type: 'nearby_event',
           title: `A new event is happening ${km} km from you`,
           body: event.title,

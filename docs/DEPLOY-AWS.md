@@ -4,16 +4,19 @@
 browser ──► Lightsail instance roamr-api (ap-southeast-2, static IP)
               Caddy :443 (HTTPS certificate, gzip)
                 └─► Node server :3001 ── web app (web/dist) and /api/*
-                                         SQLite at /opt/roamr/data/roamr.db
+                      └─► PostgreSQL 17 (container `db`, data in /opt/roamr/postgres)
 ```
 
 The web app and the API run as **one deployment** on one instance: the Docker image builds `web/` and the server serves it next to `/api`, so there is no Vercel, no CORS and the `sid` cookie (HttpOnly, SameSite=Lax, Secure) is first-party on the site's own domain. This replaces the Vercel + Fly.io setup in [DEPLOY.md](DEPLOY.md); its Google, Resend and Midtrans steps still apply, with secrets going in `/opt/roamr/.env` on the instance instead of `fly secrets set`, and `https://<SITE_HOST>` as the site address.
 
-**Why Lightsail and not EC2, ECS or Lambda.** The server keeps SQLite and the live-chat hub in one process, so it needs exactly one always-on machine with a disk. Lightsail is EC2 with a fixed monthly price that already includes the disk, a static IP and 1 TB of traffic. Serverless options would lose the database and break live chat.
+**Why Lightsail and not EC2, ECS or Lambda.** The live-chat hub lives in the app process, so the app needs exactly one always-on machine. Lightsail is EC2 with a fixed monthly price that already includes the disk, a static IP and 1 TB of traffic.
+
+**Why Postgres on the same instance.** It costs nothing extra: Postgres runs as a container next to the app, sized for the 1 GB plan, with its data on the instance disk. A Lightsail managed database starts at about $15/month, more than the server itself. Moving to one later is a `DATABASE_URL` change plus a `pg_dump`/`pg_restore`.
 
 | Item | Cost |
 |---|---|
 | Lightsail Linux, 1 GB RAM, 2 vCPU, 40 GB SSD, 1 TB transfer (`micro_3_2`) | about $7 / month |
+| PostgreSQL (container on the same instance) | free |
 | Static IP (attached) | free |
 | Automatic daily snapshots (7 kept) | storage at about $0.05 / GB-month |
 
@@ -42,7 +45,7 @@ aws lightsail enable-add-on --resource-name roamr-api \
   --add-on-request 'addOnType=AutoSnapshot,autoSnapshotAddOnRequest={snapshotTimeOfDay=18:00}'
 ```
 
-`deploy/aws/setup-instance.sh` runs on first boot: it adds swap, installs Docker, clones the repo to `/opt/roamr/app` and writes `/opt/roamr/.env` with `SITE_HOST=<ip-with-dashes>.sslip.io`, a free hostname that resolves to the IP so Caddy can get an HTTPS certificate before you have a domain. First boot happens before the static IP is attached, so run `sudo /opt/roamr/app/deploy/aws/setup-instance.sh` once more after attaching it; that switches the sslip.io name to the static IP.
+`deploy/aws/setup-instance.sh` runs on first boot: it adds swap, installs Docker, clones the repo to `/opt/roamr/app`, generates the database password into `/opt/roamr/postgres.env`, installs the nightly database dump, and writes `/opt/roamr/.env` with `DATABASE_URL` and `SITE_HOST=<ip-with-dashes>.sslip.io`, a free hostname that resolves to the IP so Caddy can get an HTTPS certificate before you have a domain. First boot happens before the static IP is attached, so run `sudo /opt/roamr/app/deploy/aws/setup-instance.sh` once more after attaching it; that switches the sslip.io name to the static IP.
 
 ## 2. Settings and first start
 
@@ -57,7 +60,7 @@ curl https://$(sudo grep ^SITE_HOST= /opt/roamr/.env | cut -d= -f2)/api/health  
 
 Open `https://<SITE_HOST>`, register with your admin email and the invite code, and check that `/admin` loads.
 
-`NODE_ENV`, `PORT`, `DATABASE_FILE=/data/roamr.db` and `TRUST_PROXY=1` (Caddy is the only proxy) are fixed in `deploy/aws/compose.yml`. Every other setting from `.env.example` goes in `/opt/roamr/.env`, which only root can read.
+`NODE_ENV`, `PORT` and `TRUST_PROXY=1` (Caddy is the only proxy) are fixed in `deploy/aws/compose.yml`. Every other setting from `.env.example` goes in `/opt/roamr/.env`, which only root can read; `DATABASE_URL` there already points at the `db` container. Postgres has no public port: only the app reaches it, over the compose network.
 
 ## Moving data from Fly (optional)
 
@@ -77,11 +80,27 @@ Keep the Fly volume until the AWS site has run for a while, then delete the Fly 
 
 - **Deploy:** `sudo /opt/roamr/app/deploy/aws/update.sh` pulls `main` and rebuilds. A few seconds of downtime; live chat reconnects by itself.
 - **Logs** (including password-reset links while email is off): `sudo docker compose -f /opt/roamr/app/deploy/aws/compose.yml logs -f app`
-- **Backups:** Lightsail keeps 7 daily snapshots. Take a manual one before risky changes: `aws lightsail create-instance-snapshot --instance-name roamr-api --instance-snapshot-name before-<change>`.
-- **One instance only.** Don't add a load balancer or a second instance: SQLite and live chat are in-process.
+- **Backups, two layers.** At 00:30 WIB `deploy/aws/backup.sh` writes a `pg_dump` to `/opt/roamr/backups/` (7 kept); at 01:00 WIB Lightsail snapshots the whole instance (7 kept), dumps included. Before risky changes run `sudo /opt/roamr/app/deploy/aws/backup.sh` and take a manual snapshot: `aws lightsail create-instance-snapshot --instance-name roamr-api --instance-snapshot-name before-<change>`.
+- **Restore a dump:** `gunzip -c /opt/roamr/backups/<file>.sql.gz | sudo docker compose -f /opt/roamr/app/deploy/aws/compose.yml exec -T db psql -U roamr roamr` into an empty database. **Restore a snapshot:** Lightsail → Snapshots → Create new instance, then move the static IP to it.
+- **One app instance only.** Don't add a load balancer or a second app instance: live chat is in-process.
 - **Domain:** add an `A` record for the domain → the static IP, set `SITE_HOST` and `PUBLIC_URL` to it in `/opt/roamr/.env`, then `sudo docker compose up -d` in `deploy/aws`. Update the Google callback and Midtrans notification URLs to the new domain.
 - **Free plan:** the AWS project's free plan ends 2027-04-22. Upgrade to the paid plan in AWS Settings before then, or the project and this instance stop.
 
-## Later: PostgreSQL
+## Moving the live site from SQLite to Postgres (once)
 
-The PRD's target is PostgreSQL + PostGIS; SQLite stays for now. When the server moves to Postgres, this setup keeps working: add a Lightsail managed database (or Amazon RDS) in the same Region, put its connection string in `/opt/roamr/.env`, and copy the data across once. Live chat still needs a single app instance until it moves off the in-process hub.
+Sites set up before the Postgres version keep their data in `/opt/roamr/data/roamr.db`. After this version is on `main`, on the instance:
+
+```bash
+cd /opt/roamr/app && sudo git pull
+sudo /opt/roamr/app/deploy/aws/switch-to-postgres.sh
+```
+
+The script builds the new image, stops the app, keeps a copy of the SQLite files in `/opt/roamr/data/before-postgres-<time>/`, starts Postgres, copies every table across (`server/src/migrate-sqlite.js`, one transaction, refuses a database that already has users) and starts everything again: a minute or two of downtime. Logins, sessions and ids carry over, so nobody has to sign in again.
+
+**Going back:** the SQLite file is untouched. `cd /opt/roamr/app && sudo git checkout <previous commit> && cd deploy/aws && sudo docker compose up -d --build app`. Anything written to Postgres after the switch would not be in the SQLite file.
+
+`update.sh` refuses to deploy the Postgres version until this has run, so a routine update can't start the new code without its data.
+
+## Later: PostGIS, managed database
+
+The PRD's target is PostgreSQL + PostGIS. Geo queries still use a bounding box plus distance in JavaScript; switching the image to `postgis/postgis` and moving them into SQL is a later step. When traffic needs it, a Lightsail managed database or Amazon RDS in the same Region only needs a new `DATABASE_URL` and a dump/restore.

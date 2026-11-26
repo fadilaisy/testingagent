@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { test } from 'node:test';
-import { openDb } from '../src/db.js';
+import { testDb } from './helpers.js';
 import { haversine } from '../src/geo.js';
 import { seed } from '../src/seed.js';
 
 const tracks = JSON.parse(fs.readFileSync(new URL('../src/seed-tracks.json', import.meta.url), 'utf8'));
 
-test('every demo route is a dense, road-following track', () => {
-  const db = openDb(':memory:');
-  seed(db);
-  const routes = db.prepare('SELECT name, geometry, distance_m FROM routes').all();
+test('every demo route is a dense, road-following track', async () => {
+  const db = await testDb();
+  await seed(db);
+  const routes = await db.prepare('SELECT name, geometry, distance_m FROM routes').all();
   assert.equal(routes.length, Object.keys(tracks).length);
   for (const r of routes) {
     const line = JSON.parse(r.geometry);

@@ -143,14 +143,14 @@ test('a new Google account creates one verified user and signs them in', async (
   assert.equal(me.user.email, 'rider@gmail.com');
   assert.equal(me.user.name, 'Rider Google');
   assert.equal(me.user.googleLinked, true);
-  const row = app.db.prepare('SELECT * FROM users WHERE email = ?').get('rider@gmail.com');
+  const row = await app.db.prepare('SELECT * FROM users WHERE email = ?').get('rider@gmail.com');
   assert.equal(row.email_verified, 1);
   assert.equal(row.password_hash, NO_PASSWORD);
 
   // Signing in again finds the same account.
   const again = browser(app.base);
   await googleSignIn(t, g, again);
-  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1);
+  assert.equal((await app.db.prepare('SELECT COUNT(*) AS n FROM users').get()).n, 1);
   const me2 = await (await again.go('/api/me')).json();
   assert.equal(me2.user.id, me.user.id);
 
@@ -182,7 +182,7 @@ test('the callback refuses a state from another browser, a reused state and a mi
   // The state was used up, so the attacker can't replay it either.
   const replay = await attacker.go(`/api/auth/google/callback?code=good-code&state=${to.searchParams.get('state')}`);
   assert.equal(replay.headers.get('location'), '/login?google_error=expired');
-  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 0);
+  assert.equal((await app.db.prepare('SELECT COUNT(*) AS n FROM users').get()).n, 0);
 });
 
 test('cancelling on Google and a refused code end on the login page with a message', async (t) => {
@@ -207,7 +207,7 @@ test('a database error at the callback still redirects to the login page', async
   t.after(() => app.close());
   const b = browser(app.base);
   const to = new URL((await b.go('/api/auth/google')).headers.get('location'));
-  app.db.exec('DROP TABLE oauth_states');
+  await app.db.exec('DROP TABLE oauth_states');
   const errors = t.mock.method(console, 'error', () => {});
   const cb = await b.go(`/api/auth/google/callback?code=good-code&state=${to.searchParams.get('state')}`);
   assert.equal(cb.status, 302);
@@ -236,12 +236,12 @@ test('expired sign-in states are purged at the callback too', async (t) => {
   const abandoned = new URL((await browser(app.base).go('/api/auth/google')).headers.get('location'));
   const b = browser(app.base);
   const to = new URL((await b.go('/api/auth/google')).headers.get('location'));
-  app.db
+  await app.db
     .prepare('UPDATE oauth_states SET expires_at = ? WHERE state = ?')
     .run(new Date(Date.now() - 1000).toISOString(), abandoned.searchParams.get('state'));
   g.queue(g.sign(g.claims({ nonce: to.searchParams.get('nonce') })));
   await b.go(`/api/auth/google/callback?code=good-code&state=${to.searchParams.get('state')}`);
-  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM oauth_states').get().n, 0);
+  assert.equal((await app.db.prepare('SELECT COUNT(*) AS n FROM oauth_states').get()).n, 0);
 });
 
 test('ID tokens are checked for signature, issuer, audience, expiry, nonce and verified email', async () => {
@@ -279,7 +279,7 @@ test('an unverified email is refused at the callback', async (t) => {
   t.after(() => app.close());
   const where = await googleSignIn(t, g, browser(app.base), { claims: { email_verified: false } });
   assert.equal(where, '/login?google_error=unverified_email');
-  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 0);
+  assert.equal((await app.db.prepare('SELECT COUNT(*) AS n FROM users').get()).n, 0);
 });
 
 test('linking an existing password account keeps the user, role and data, and removes an unproven password', async (t) => {
@@ -292,12 +292,12 @@ test('linking an existing password account keeps the user, role and data, and re
   const reg = await pw.post('/api/auth/register', { email: 'Rider@Gmail.com', password: 'secret-pass', name: 'Rider Pw' });
   assert.equal(reg.status, 201);
   await pw.patch('/api/me', { bio: 'Gravel every Sunday' });
-  app.db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(reg.body.user.id);
+  await app.db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(reg.body.user.id);
 
   const b = browser(app.base);
   const where = await googleSignIn(t, g, b);
   assert.equal(where, '/onboarding?next=%2F', 'not onboarded yet, so onboarding next');
-  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 2, 'no duplicate user');
+  assert.equal((await app.db.prepare('SELECT COUNT(*) AS n FROM users').get()).n, 2, 'no duplicate user');
   const me = await (await b.go('/api/me')).json();
   assert.equal(me.user.id, reg.body.user.id);
   assert.equal(me.user.name, 'Rider Pw', 'profile kept');
@@ -310,7 +310,7 @@ test('linking an existing password account keeps the user, role and data, and re
   assert.equal((await pw.get('/api/me')).body.user, null);
   const login = await app.client().post('/api/auth/login', { email: 'rider@gmail.com', password: 'secret-pass' });
   assert.equal(login.status, 401);
-  const note = app.db.prepare("SELECT * FROM notifications WHERE user_id = ? AND type = 'account'").get(reg.body.user.id);
+  const note = await app.db.prepare("SELECT * FROM notifications WHERE user_id = ? AND type = 'account'").get(reg.body.user.id);
   assert.ok(note, 'user is told why their password stopped working');
   assert.ok(first.user.isAdmin);
 });
@@ -342,7 +342,7 @@ test('an email linked to one Google account cannot be taken by another, and susp
   const other = await googleSignIn(t, g, browser(app.base), { claims: { sub: '2200000000000002' } });
   assert.equal(other, '/login?google_error=linked_elsewhere');
 
-  app.db.prepare('UPDATE users SET suspended = 1').run();
+  await app.db.prepare('UPDATE users SET suspended = 1').run();
   const b = browser(app.base);
   assert.equal(await googleSignIn(t, g, b), '/login?google_error=suspended');
   assert.equal(b.jar.get('sid'), undefined);
@@ -357,7 +357,7 @@ test('invite-only sign-up applies to new Google accounts but not to existing one
   assert.equal(await googleSignIn(t, g, browser(app.base), { query: '?invite=wrong' }), '/login?google_error=invite_required');
   assert.match(await googleSignIn(t, g, browser(app.base), { query: '?invite=alpha-1' }), /^\/onboarding/);
   // Existing account: no code needed.
-  app.db.prepare('UPDATE users SET onboarded = 1').run();
+  await app.db.prepare('UPDATE users SET onboarded = 1').run();
   assert.equal(await googleSignIn(t, g, browser(app.base)), '/');
 });
 
@@ -378,7 +378,7 @@ test('only safe same-site paths are used after sign-in', async (t) => {
   const app = await startTestApp({ google: g.auth });
   t.after(() => app.close());
   for (const next of ['https://evil.example', '//evil.example', '/\\evil.example', '/login', '/api/me']) {
-    app.db.prepare('DELETE FROM users').run();
+    await app.db.prepare('DELETE FROM users').run();
     const where = await googleSignIn(t, g, browser(app.base), { query: `?next=${encodeURIComponent(next)}` });
     assert.equal(where, '/onboarding?next=%2F', next);
   }
@@ -397,15 +397,15 @@ test('signInWithGoogle never creates a second user for the same email', async (t
   const app = await startTestApp({ google: null });
   t.after(() => app.close());
   const identity = { sub: 's-1', email: 'x@gmail.com', name: 'X', picture: null };
-  const a = signInWithGoogle(app.db, {}, identity);
-  const b = signInWithGoogle(app.db, {}, identity);
+  const a = await signInWithGoogle(app.db, {}, identity);
+  const b = await signInWithGoogle(app.db, {}, identity);
   assert.equal(a.created, true);
   assert.equal(b.created, false);
   assert.equal(a.user.id, b.user.id);
 });
 
 test('Google settings must be complete and use the right callback path', () => {
-  const base = { NODE_ENV: 'production', DATABASE_FILE: '/data/x.db' };
+  const base = { NODE_ENV: 'production', DATABASE_URL: 'postgres://roamr@db/roamr' };
   assert.throws(() => loadConfig({ ...base, GOOGLE_CLIENT_ID: 'id' }), /all of GOOGLE_CLIENT_ID/);
   const all = { GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's' };
   assert.throws(() => loadConfig({ ...base, ...all, GOOGLE_CALLBACK_URL: 'http://roamr.id/api/auth/google/callback' }), /https/);
@@ -462,15 +462,15 @@ test('reset tokens expire, are stored hashed, and a new link replaces the old on
   const user = await app.signup('Token User');
   const id = user.user.id;
 
-  const t1 = createResetToken(app.db, id);
-  assert.equal(app.db.prepare('SELECT 1 FROM password_resets WHERE token = ?').get(t1), undefined, 'raw token not stored');
-  const t2 = createResetToken(app.db, id);
-  assert.equal(consumeResetToken(app.db, t1), null, 'older link no longer works');
-  app.db.prepare('UPDATE password_resets SET expires_at = ?').run(new Date(Date.now() - 1000).toISOString());
-  assert.equal(consumeResetToken(app.db, t2), null, 'expired');
-  const t3 = createResetToken(app.db, id);
-  assert.equal(consumeResetToken(app.db, t3), id);
-  assert.equal(consumeResetToken(app.db, t3), null, 'single use');
+  const t1 = await createResetToken(app.db, id);
+  assert.equal(await app.db.prepare('SELECT 1 FROM password_resets WHERE token = ?').get(t1), undefined, 'raw token not stored');
+  const t2 = await createResetToken(app.db, id);
+  assert.equal(await consumeResetToken(app.db, t1), null, 'older link no longer works');
+  await app.db.prepare('UPDATE password_resets SET expires_at = ?').run(new Date(Date.now() - 1000).toISOString());
+  assert.equal(await consumeResetToken(app.db, t2), null, 'expired');
+  const t3 = await createResetToken(app.db, id);
+  assert.equal(await consumeResetToken(app.db, t3), id);
+  assert.equal(await consumeResetToken(app.db, t3), null, 'single use');
 });
 
 test('a failing email provider does not reveal whether the account exists', async (t) => {
@@ -489,7 +489,7 @@ test('a failing email provider does not reveal whether the account exists', asyn
 });
 
 test('email settings must come in pairs', () => {
-  const base = { NODE_ENV: 'production', DATABASE_FILE: '/data/x.db' };
+  const base = { NODE_ENV: 'production', DATABASE_URL: 'postgres://roamr@db/roamr' };
   assert.throws(() => loadConfig({ ...base, RESEND_API_KEY: 're_x' }), /RESEND_API_KEY and EMAIL_FROM/);
   assert.throws(() => loadConfig({ ...base, RESEND_API_KEY: 're_x', EMAIL_FROM: 'ROAMR <no-reply@roamr.id>' }), /PUBLIC_URL/);
   const cfg = loadConfig({ ...base, RESEND_API_KEY: 're_x', EMAIL_FROM: 'a@b.c', PUBLIC_URL: 'https://roamr.id' });

@@ -26,15 +26,15 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(expected, actual);
 }
 
-export function createSession(db, userId) {
+export async function createSession(db, userId) {
   const token = crypto.randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5).toISOString();
-  db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expires);
+  await db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expires);
   return { token, expires };
 }
 
-export function destroySession(db, token) {
-  if (token) db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+export async function destroySession(db, token) {
+  if (token) await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
 // Reset links are valid for an hour and work once. Only a hash of the token
@@ -42,18 +42,18 @@ export function destroySession(db, token) {
 export const RESET_TOKEN_MINUTES = 60;
 const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('base64url');
 
-export function createResetToken(db, userId) {
+export async function createResetToken(db, userId) {
   const token = crypto.randomBytes(24).toString('base64url');
   const expires = new Date(Date.now() + RESET_TOKEN_MINUTES * 60e3).toISOString();
   // A new link replaces any earlier one for the same account.
-  db.prepare('DELETE FROM password_resets WHERE user_id = ? OR expires_at <= ?').run(userId, nowIso());
-  db.prepare('INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?)').run(hashToken(token), userId, expires);
+  await db.prepare('DELETE FROM password_resets WHERE user_id = ? OR expires_at <= ?').run(userId, nowIso());
+  await db.prepare('INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?)').run(hashToken(token), userId, expires);
   return token;
 }
 
-export function consumeResetToken(db, token) {
+export async function consumeResetToken(db, token) {
   const hashed = hashToken(token ?? '');
-  const row = db.prepare('DELETE FROM password_resets WHERE token = ? RETURNING user_id, expires_at').get(hashed);
+  const row = await db.prepare('DELETE FROM password_resets WHERE token = ? RETURNING user_id, expires_at').get(hashed);
   if (!row || row.expires_at <= nowIso()) return null;
   return row.user_id;
 }
@@ -79,9 +79,9 @@ export function loadUser(db) {
     `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token = ? AND s.expires_at > ? AND u.suspended = 0`,
   );
-  return (req, _res, next) => {
+  return async (req, _res, next) => {
     const token = req.cookies?.sid;
-    req.user = token ? stmt.get(token, nowIso()) ?? null : null;
+    req.user = token ? (await stmt.get(token, nowIso())) ?? null : null;
     next();
   };
 }
@@ -98,16 +98,16 @@ export function requireAdmin(req, _res, next) {
 
 // Gives admin to existing accounts listed in ADMIN_EMAILS. Returns how many
 // accounts changed. Accounts registered later are handled at sign-up.
-export function promoteAdmins(db, emails = []) {
+export async function promoteAdmins(db, emails = []) {
   let changed = 0;
   const stmt = db.prepare('UPDATE users SET is_admin = 1 WHERE email = ? AND is_admin = 0');
-  for (const email of emails) changed += Number(stmt.run(email).changes);
+  for (const email of emails) changed += Number((await stmt.run(email)).changes);
   return changed;
 }
 
-export function isPremium(db, userId) {
+export async function isPremium(db, userId) {
   return Boolean(
-    db
+    await db
       .prepare(
         `SELECT 1 FROM subscriptions WHERE user_id = ? AND status = 'active' AND end_date > ? LIMIT 1`,
       )
