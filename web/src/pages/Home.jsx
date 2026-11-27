@@ -1,18 +1,21 @@
-import { ArrowRight, CalendarClock, LocateFixed, MapPin, Plus } from 'lucide-react';
+import { ArrowRight, CalendarClock, LocateFixed, MapPin, Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { ConditionItem } from '../components/cards.jsx';
 import { FinishedFeedCard, PlanFeedCard } from '../components/feed.jsx';
 import { ACTIVITY_STYLE, activityIcon } from '../components/icons.jsx';
 import { MapView } from '../components/MapView.jsx';
 import { ActIcon, ActivityChips, Avatar, Empty, Loaded, Skeleton } from '../components/ui.jsx';
-import { elevation, km, rupiah, when } from '../format.js';
+import { distanceAway, elevation, km, rupiah, when } from '../format.js';
 import { getPosition, useLoad, useSession } from '../session.jsx';
 
-// Home is a dashboard in three columns on wide screens: you on the left,
-// the feed of plans and finished outings in the middle, and things to go
-// to on the right. Phones stack them with the feed first.
+// Home opens on the route finder, the first step of the core loop and the
+// part that is useful before anyone else is on ROAMR: search, a map of
+// routes near you and the nearest ones as a list. Below it is the dashboard
+// in three columns on wide screens: you on the left, the feed of plans and
+// finished outings in the middle, and things to go to on the right. Phones
+// stack them with the feed first.
 
 function Section({ title, link, linkLabel = 'See all', children }) {
   return (
@@ -141,6 +144,115 @@ function GuestCard() {
   );
 }
 
+// Route rows next to the finder map; the list is the map's text twin.
+function FinderRoute({ route: r }) {
+  return (
+    <Link className="finder-row" to={`/routes/${r.id}`}>
+      <ActIcon type={r.activityType} size={44} />
+      <span className="card-main">
+        <span className="strong truncate">{r.name}</span>
+        <span className="tiny muted truncate num">
+          {km(r.distanceM)} · {elevation(r.elevationGain)} · {r.difficulty}
+          {r.upcomingCount ? ` · ${r.upcomingCount} upcoming` : ''}
+        </span>
+      </span>
+      {r.distanceFromYouM != null && <span className="tiny muted nowrap num">{distanceAway(r.distanceFromYouM)}</span>}
+    </Link>
+  );
+}
+
+function RouteFinder({ data: d, activity, setActivity, place, pos, locate, locError }) {
+  const navigate = useNavigate();
+  const [q, setQ] = useState('');
+  const near = d?.nearbyRoutes ?? [];
+  const routes = useMemo(() => (d?.nearbyRoutes?.length ? d.nearbyRoutes : (d?.popularRoutes ?? []).slice(0, 5)), [d]);
+  const markers = useMemo(
+    () =>
+      routes.map((r) => ({
+        lat: r.start[0],
+        lng: r.start[1],
+        icon: activityIcon(r.activityType),
+        color: ACTIVITY_STYLE[r.activityType]?.color,
+        title: r.name,
+        subtitle: `${km(r.distanceM)} · ${r.difficulty}`,
+        link: `/routes/${r.id}`,
+      })),
+    [routes],
+  );
+  const all = `/explore${qs({ activity: activity || undefined })}`;
+
+  return (
+    <section className="card finder" aria-labelledby="finder-title">
+      <div className="finder-intro">
+        <div className="home-place">
+          <MapPin size={16} aria-hidden="true" /> {pos ? 'Near you' : place}
+          {!pos && (
+            <button type="button" className="btn ghost small" onClick={locate}>
+              <LocateFixed size={16} aria-hidden="true" /> Use my location
+            </button>
+          )}
+        </div>
+        <h1 id="finder-title" className="num">
+          {!d ? (
+            <Skeleton width="80%" height="1em" />
+          ) : d.nearbyRouteCount ? (
+            `${d.nearbyRouteCount} ${d.nearbyRouteCount === 1 ? 'route' : 'routes'} within 50 km of ${pos ? 'you' : place}`
+          ) : (
+            `No routes start within 50 km of ${pos ? 'you' : place} yet`
+          )}
+        </h1>
+        {locError && <p className="field-error">{locError}</p>}
+        <form
+          className="finder-search"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            navigate(`/explore${qs({ q: q.trim() || undefined, activity: activity || undefined })}`);
+          }}
+        >
+          <label className="sr-only" htmlFor="finder-q">
+            Search routes by name or area
+          </label>
+          <Search className="finder-search-icon" size={20} aria-hidden="true" />
+          <input id="finder-q" type="search" enterKeyHint="search" autoCapitalize="none" autoCorrect="off" placeholder="Name or area" value={q} onChange={(e) => setQ(e.target.value)} />
+          <button type="submit" className="btn primary">
+            Find routes
+          </button>
+        </form>
+        <ActivityChips value={activity} onChange={setActivity} />
+      </div>
+
+      <div className="finder-body">
+        <div className="finder-map">{d ? <MapView markers={markers} center={d.center} zoom={10} label="Map of routes near you" /> : <Skeleton height="100%" />}</div>
+        <div className="finder-list">
+          <div className="side-block-head">
+            <h2>{near.length ? 'Nearest routes' : 'Popular routes'}</h2>
+            <Link to={all}>All routes</Link>
+          </div>
+          {!d ? (
+            <div className="stack tight" aria-hidden="true">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} height={56} />
+              ))}
+            </div>
+          ) : routes.length ? (
+            <div className="stack tight">
+              {routes.map((r) => (
+                <FinderRoute key={r.id} route={r} />
+              ))}
+            </div>
+          ) : (
+            <p className="small muted">
+              No routes yet. <Link to="/routes/new">Upload a GPX</Link> to add the first.
+            </p>
+          )}
+          {d && !near.length && routes.length > 0 && <p className="tiny muted finder-note">None start within 50 km, so these are the most used routes on ROAMR.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FeedSkeleton() {
   return (
     <div className="stack" role="status">
@@ -180,53 +292,30 @@ export function Home() {
 
   const place = pos ? 'you' : user?.locationName ?? 'Jakarta';
   const d = state.data;
-  const markers = useMemo(
-    () =>
-      (d?.nearbyActivities ?? []).map((a) => ({
-        lat: a.meeting[0],
-        lng: a.meeting[1],
-        icon: activityIcon(a.activityType),
-        color: ACTIVITY_STYLE[a.activityType]?.color,
-        title: a.title,
-        subtitle: `${when(a.startsAt)} · ${a.participantCount} going`,
-        link: `/activities/${a.id}`,
-      })),
-    [d],
-  );
   const explore = `/explore${activity ? `?activity=${activity}` : ''}`;
 
   return (
     <div className="dash">
+      <RouteFinder data={d} activity={activity} setActivity={setActivity} place={place} pos={pos} locate={locate} locError={locError} />
+
       <aside className="dash-me">{user ? d?.me ? <MeCard me={d.me} /> : <Skeleton height={360} style={{ borderRadius: 'var(--radius)' }} /> : <GuestCard />}</aside>
 
       <div className="dash-feed">
         <div className="feed-intro">
-          <div className="home-place">
-            <MapPin size={16} aria-hidden="true" /> {pos ? 'Near you' : user?.locationName ?? 'Jakarta'}
-            {!pos && (
-              <button type="button" className="btn ghost small" onClick={locate}>
-                <LocateFixed size={16} aria-hidden="true" /> Use my location
-              </button>
-            )}
-          </div>
-          <h1 className="num">
+          <h2 className="num">
             {!d ? (
-              <Skeleton width="80%" height="1em" />
+              <Skeleton width="70%" height="1em" />
             ) : d.nearbyCount ? (
               `${d.nearbyCount} ${d.nearbyCount === 1 ? 'ride or run' : 'rides and runs'} planned near ${place}`
             ) : (
               `Nothing is planned near ${place} yet`
             )}
-          </h1>
-          {locError && <p className="field-error">{locError}</p>}
-          <div className="feed-tools">
-            <ActivityChips value={activity} onChange={setActivity} />
-            {user && (
-              <Link className="btn primary" to="/activities/new">
-                <Plus size={20} aria-hidden="true" /> Plan an activity
-              </Link>
-            )}
-          </div>
+          </h2>
+          {user && (
+            <Link className="btn feed-plan" to="/activities/new">
+              <Plus size={20} aria-hidden="true" /> Plan an activity
+            </Link>
+          )}
         </div>
 
         <Loaded state={state} skeleton={<FeedSkeleton />}>
@@ -262,9 +351,6 @@ export function Home() {
       <aside className="dash-side" aria-label="Around you">
         {d && (
           <>
-            <section className="card side-block side-map">
-              <MapView markers={markers} center={d.center} label="Map of plans near you" />
-            </section>
             <SideBlock title="Events, next 30 days" link="/explore?tab=events">
               {d.upcomingEvents.length ? (
                 <div className="stack tight">
@@ -286,22 +372,6 @@ export function Home() {
               ) : (
                 <p className="small muted">No reports from riders and runners in the last 24 hours.</p>
               )}
-            </SideBlock>
-            <SideBlock title="Popular routes" link={explore}>
-              <div className="stack tight">
-                {d.popularRoutes.slice(0, 4).map((r) => (
-                  <Link key={r.id} className="side-row" to={`/routes/${r.id}`}>
-                    <ActIcon type={r.activityType} size={44} />
-                    <span className="card-main">
-                      <span className="strong truncate">{r.name}</span>
-                      <span className="tiny muted truncate num">
-                        {km(r.distanceM)} · {elevation(r.elevationGain)}
-                        {r.upcomingCount ? ` · ${r.upcomingCount} upcoming` : ''}
-                      </span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
             </SideBlock>
             <SideBlock title="Communities to join" link="/communities">
               <div className="stack tight">

@@ -452,15 +452,39 @@ a:has(> .avatar):active { box-shadow: 0 0 0 3px var(--border-strong); }
    card radius rules, so nested corners stay concentric. */
 .home-place { display: flex; align-items: center; gap: 6px; min-height: 44px; margin-bottom: var(--space-1); font-size: 0.875rem; font-weight: 600; color: var(--muted); }
 .home-place .btn { margin-left: auto; }
-.dash { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'feed' 'me' 'side'; }
+.dash { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'finder' 'feed' 'me' 'side'; }
 .dash-me { grid-area: me; }
 .dash-feed { grid-area: feed; min-width: 0; }
 .dash-side { grid-area: side; display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .dash .section:first-of-type { margin-top: var(--space-5); }
-.feed-intro h1 { font-size: 1.75rem; line-height: 1.12; margin-bottom: var(--space-3); }
-.feed-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.feed-tools > :first-child { flex: 1 1 100%; min-width: 0; }
-.feed-tools .btn.primary { flex: 1 1 auto; }
+.feed-intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.feed-intro h2 { font-size: 1.35rem; line-height: 1.2; margin: 0; flex: 1 1 260px; }
+
+/* The route finder leads Home: the one orange action is Find routes. The
+   map and the nearest routes sit side by side on wide screens. */
+.finder { grid-area: finder; --pad: 20px; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
+.finder-intro { min-width: 0; }
+.finder-intro h1 { font-size: 1.75rem; line-height: 1.12; margin-bottom: var(--space-3); text-wrap: balance; }
+.finder-search { position: relative; display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
+.finder-search input { flex: 1; min-width: 0; min-height: 52px; padding-left: 44px; border-radius: 999px; font-size: 1rem; }
+.finder-search .btn.primary { min-height: 52px; border-radius: 999px; padding-inline: 20px; }
+.finder-search-icon { position: absolute; left: 16px; top: 16px; color: var(--muted); pointer-events: none; }
+.finder-search input::-webkit-search-cancel-button { display: none; }
+.finder-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
+.finder-list { min-width: 0; }
+.finder-map { min-width: 0; }
+.finder-map .map { height: 240px; border-radius: var(--inner); }
+.finder-list .side-block-head h2 { font-size: 1rem; margin: 0; }
+.finder-row { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; color: var(--text); font-weight: 400; min-width: 0; }
+.finder-row .card-main { display: flex; flex-direction: column; }
+@media (hover: hover) { .finder-row:hover { text-decoration: none; } .finder-row:hover .strong { color: var(--link); } }
+.finder-note { margin: var(--space-3) 0 0; }
+@media (max-width: 479px) {
+  .finder { --pad: 16px; }
+  .finder-intro h1 { font-size: 1.5rem; }
+  .finder-map .map { height: 200px; }
+  .finder-search .btn.primary { padding-inline: 16px; }
+}
 /* On wide screens the sidebar's Create button is the way in. */
 .feed { display: flex; flex-direction: column; gap: var(--space-4); }
 
@@ -528,16 +552,18 @@ a:has(> .avatar):active { box-shadow: 0 0 0 3px var(--border-strong); }
 .side-row .card-main { display: flex; flex-direction: column; }
 .side-row .date-tile { width: 48px; height: 48px; }
 @media (hover: hover) { .side-row:hover { text-decoration: none; } .side-row:hover .strong { color: var(--link); } }
-.side-map { --pad: 0px; overflow: hidden; }
-.side-map .map { height: 240px; border-radius: 0; border: 0; }
 
 @media (min-width: 1024px) {
-  .dash { grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: 'feed me' 'feed side'; align-items: start; column-gap: var(--space-5); row-gap: var(--space-4); }
-  .feed-tools .btn.primary { display: none; }
-  .feed-intro h1 { font-size: 2.1rem; }
+  .dash { grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: 'finder finder' 'feed me' 'feed side'; align-items: start; column-gap: var(--space-5); row-gap: var(--space-4); }
+  .feed-plan { display: none; }
+  .finder { --pad: 24px; }
+  .finder-intro h1 { font-size: 2.1rem; }
+  .finder-intro { max-width: 760px; }
+  .finder-body { grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); align-items: stretch; }
+  .finder-map .map { height: 100%; min-height: 340px; }
 }
 @media (min-width: 1360px) {
-  .dash { grid-template-columns: 264px minmax(0, 1fr) 288px; grid-template-areas: 'me feed side'; column-gap: 20px; }
+  .dash { grid-template-columns: 264px minmax(0, 1fr) 288px; grid-template-areas: 'finder finder finder' 'me feed side'; column-gap: 20px; }
   .dash-me { position: sticky; top: 96px; }
 }
 @media (prefers-reduced-motion: reduce) { .feed-card { transition: none; } .feed-card:has(.stretch:hover) { transform: none; } }

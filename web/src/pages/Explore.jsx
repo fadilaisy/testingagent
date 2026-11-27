@@ -26,7 +26,8 @@ export function Explore() {
   const [distance, setDistance] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [sort, setSort] = useState('popular');
-  const [text, setText] = useState('');
+  // Home's route finder hands its search over as ?q=.
+  const [text, setText] = useState(() => params.get('q') ?? '');
   const [pos, setPos] = useState(null);
   const [radius, setRadius] = useState('');
   const [showMap, setShowMap] = useState(true);
