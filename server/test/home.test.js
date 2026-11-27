@@ -66,3 +66,34 @@ test('home feed hides private profiles, private plans and anonymous stats', asyn
     await t.close();
   }
 });
+
+test('home route finder lists routes within 50 km, nearest first', async () => {
+  const t = await startTestApp();
+  try {
+    seed(t.db);
+    const guest = t.client();
+    // Bogor: the seeded Sentul and Puncak routes are close, Jakarta ones farther.
+    const home = (await guest.get('/api/home?lat=-6.595&lng=106.8166')).body;
+    assert.ok(home.nearbyRoutes.length > 0, 'seeded routes start near Bogor');
+    assert.ok(home.nearbyRoutes.length <= 6);
+    assert.ok(home.nearbyRouteCount >= home.nearbyRoutes.length);
+    const gaps = home.nearbyRoutes.map((r) => r.distanceFromYouM);
+    assert.ok(gaps.every((m) => m <= 50000), 'only routes within 50 km');
+    assert.deepEqual(gaps, [...gaps].sort((a, b) => a - b), 'nearest first');
+    assert.ok(home.nearbyRoutes.every((r) => r.routeLine.length >= 2 && r.routeLine.length <= 48));
+
+    // Far from every seeded route: the finder is empty but Home still answers.
+    const far = (await guest.get('/api/home?lat=-8.6705&lng=115.2126')).body;
+    assert.equal(far.nearbyRouteCount, 0);
+    assert.deepEqual(far.nearbyRoutes, []);
+    assert.ok(far.popularRoutes.length > 0, 'popular routes are the fallback');
+
+    // A hidden route never shows up in the finder.
+    const first = home.nearbyRoutes[0];
+    t.db.prepare('UPDATE routes SET hidden = 1 WHERE id = ?').run(first.id);
+    const after = (await guest.get('/api/home?lat=-6.595&lng=106.8166')).body;
+    assert.ok(!after.nearbyRoutes.some((r) => r.id === first.id));
+  } finally {
+    await t.close();
+  }
+});

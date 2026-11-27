@@ -38,6 +38,8 @@ export const CITIES = [
   { name: 'Denpasar / Bali', lat: -8.6705, lng: 115.2126 },
 ];
 const DEFAULT_CENTER = CITIES[0];
+// Routes that start this close to the viewer count as nearby on Home.
+const NEARBY_ROUTE_M = 50000;
 
 const REPORT_TARGETS = ['route', 'activity', 'user', 'community', 'event', 'message'];
 export const REPORT_REASONS = {
@@ -157,6 +159,10 @@ export function miscRouter({ db, hub, config, payments, google, notifier }) {
       .map((r) => ({ ...r, distance_from_you_m: dist(r.start_lat, r.start_lng) }))
       .sort((a, b) => b.completed_count + b.upcoming_count * 2 - (a.completed_count + a.upcoming_count * 2));
 
+    // The route finder at the top of Home (core loop step 1, "find a
+    // route"): routes starting within 50 km, nearest first.
+    const close = routes.filter((r) => r.distance_from_you_m <= NEARBY_ROUTE_M).sort((a, b) => a.distance_from_you_m - b.distance_from_you_m);
+
     const events = db
       .prepare(
         `${EVENT_SELECT} WHERE e.hidden = 0 AND c.hidden = 0 AND c.privacy = 'public' AND e.starts_at > ? AND e.starts_at < ?
@@ -223,6 +229,8 @@ export function miscRouter({ db, hub, config, payments, google, notifier }) {
       nearbyCount: nearby.length,
       nearbyActivities: nearby.slice(0, 6).map(withLine),
       finishedActivities: finished,
+      nearbyRouteCount: close.length,
+      nearbyRoutes: close.slice(0, 6).map((r) => ({ ...routeSummary(r), routeLine: thumbLine(JSON.parse(r.geometry ?? '[]')) })),
       popularRoutes: routes.slice(0, 6).map(routeSummary),
       upcomingEvents: events.slice(0, 4).map(eventSummary),
       recentConditions: conditions,

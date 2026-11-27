@@ -1,4 +1,4 @@
-import { Activity, Bell, Compass, House, Mountain, Plus, User, Users, X } from 'lucide-react';
+import { Activity, Bell, House, Mountain, Plus, Route as RouteIcon, User, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar, ErrorBox, NotFound, RequireAuth, SkeletonCards } from './components/ui.jsx';
@@ -100,11 +100,13 @@ function Brand({ className = '' }) {
 
 // Tabs only navigate (Apple HIG, tab bars); Create is an action, so it lives
 // in the top bar on phones and as a button above the sidebar on desktop.
+// Finding a route starts the core loop, so Explore is named Routes and sits
+// next to Home, which opens on the route finder.
 function useTabs() {
   const { user } = useSession();
   return [
     { to: '/', label: 'Home', Icon: House, end: true },
-    { to: '/explore', label: 'Explore', Icon: Compass },
+    { to: '/explore', label: 'Routes', Icon: RouteIcon },
     { to: '/activities', label: 'Activity', Icon: Activity },
     { to: '/communities', label: 'Community', Icon: Users },
     { to: user ? `/users/${user.id}` : '/login', label: 'Profile', Icon: User },
